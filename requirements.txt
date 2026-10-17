@@ -1,0 +1,6 @@
+# e-cad requirements
+PySide6>=6.6
+numpy>=1.24
+
+# Сборка .exe
+pyinstaller>=6.0

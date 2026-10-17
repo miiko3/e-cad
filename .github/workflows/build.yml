@@ -1,0 +1,50 @@
+name: Сборка e-cad
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Установить зависимости
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install PySide6 numpy pyinstaller
+
+      - name: Проверка импорта и ядра
+        run: |
+          python -c "import sys; sys.path.insert(0,'.'); \
+            from ecad.core import geom, model, fill, drc, exporters, importers, tools_lib, footprints; \
+            from ecad.ui import theme, canvas, panels, dialogs, dialogs_board, render, helpwindow, about, main_window; \
+            print('модули e-cad импортируются')"
+
+      - name: Сборка исполняемого файла
+        run: |
+          pyinstaller --noconfirm --clean --windowed --name e-cad ^
+            --add-data "assets;assets" ^
+            --add-data "examples;examples" ^
+            --hidden-import PySide6.QtPrintSupport ^
+            main.py
+
+      - name: Архив сборки
+        uses: actions/upload-artifact@v4
+        with:
+          name: e-cad-windows
+          path: dist/e-cad.exe
+          if-no-files-found: error
+
+      - name: Создать релиз
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/e-cad.exe
+          generate_release_notes: true
