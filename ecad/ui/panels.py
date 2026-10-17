@@ -75,11 +75,12 @@ class ToolPanel(QFrame):
         self.canvas = canvas
         self.setObjectName("LeftPanel")
         self.collapsed = False
-        self.expanded_width = 250
+        self.expanded_width = 268
         self.setMinimumWidth(72)
         self.setMaximumWidth(460)
         self.resize(self.expanded_width, 800)
         self.buttons: Dict[str, QToolButton] = {}
+        self.tool_names: Dict[str, str] = {}
         self.panel_buttons: Dict[str, QToolButton] = {}
         self._build()
         self.apply_state()
@@ -114,7 +115,7 @@ class ToolPanel(QFrame):
         grid.setVerticalSpacing(4)
         for i, (key, name, hotkey, ic) in enumerate(TOOLS):
             b = QToolButton()
-            b.setObjectName("ToolButton")
+            b.setObjectName("ToolButton_" + key)
             b.setIcon(icon(ic, "#c8d4e4", 24))
             b.setText(name)
             b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
@@ -124,6 +125,7 @@ class ToolPanel(QFrame):
             b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             b.clicked.connect(lambda _c, k=key: self.toolPicked.emit(k))
             self.buttons[key] = b
+            self.tool_names[key] = name
             r, c = divmod(i, 2)
             grid.addWidget(b, r, c)
         grid.setColumnStretch(0, 1)
@@ -252,8 +254,8 @@ class ToolPanel(QFrame):
 
     def apply_state(self):
         c = self.collapsed
-        self.setMaximumWidth(76 if c else 460)
-        self.setMinimumWidth(72 if c else 170)
+        self.setMaximumWidth(76 if c else 520)
+        self.setMinimumWidth(72 if c else 210)
         self.lbl_tools.setVisible(not c)
         self.lbl_panels.setVisible(not c)
         self.lbl_thick.setVisible(not c)
@@ -268,15 +270,34 @@ class ToolPanel(QFrame):
                 b.setToolTip(b.toolTip().split("\n")[0])
             else:
                 b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-                b.setText(_tool_text(b.toolTip()))
-            b.setFixedWidth(30 if c else 0)
-            b.setMinimumWidth(30 if c else 76)
+                key = b.objectName().replace("ToolButton_", "")
+                b.setText(self.tool_names.get(key, b.text()))
+            if c:
+                b.setFixedWidth(32)
+            else:
+                b.setMinimumWidth(104)
+                b.setMaximumWidth(16777215)
         for key, b in self.panel_buttons.items():
             b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly if c
                                 else Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-            b.setFixedWidth(58 if c else 0)
-            b.setMinimumWidth(58 if c else 64)
-            b.setMaximumWidth(58 if c else 16777215)
+            if c:
+                b.setFixedWidth(58)
+            else:
+                b.setMinimumWidth(88)
+                b.setMaximumWidth(16777215)
+        # переносим кнопки панелей в нужный контейнер (родитель — виджет)
+        for i, key in enumerate(self.panel_buttons):
+            b = self.panel_buttons[key]
+            target = self.panels_compact if c else self.panels_host
+            if b.parentWidget() is not target:
+                old_layout = b.parentWidget().layout() if b.parentWidget() else None
+                if old_layout is not None:
+                    old_layout.removeWidget(b)
+                b.setParent(target)
+            if c:
+                self.panels_compact.layout().addWidget(b, 0, Qt.AlignmentFlag.AlignHCenter)
+            else:
+                self.panels_host.layout().addWidget(b, i // 3, i % 3)
         self.panels_host.setVisible(not c)
         self.panels_compact.setVisible(c)
         self.btn_collapse.setFixedSize(34, 30)
@@ -804,7 +825,9 @@ class DrcPanel(QFrame):
         self.list.clear()
         for e in errs:
             title = drc_mod.RULE_NAMES.get(e.rule, e.rule)
-            it = QListWidgetItem(f"[{e.layer_name()}] {title}  —  {e.text}")
+            short = e.text.replace(" < ", " < ")
+            it = QListWidgetItem(f"[{e.layer_name()}] {title}")
+            it.setToolTip(e.text)
             it.setForeground(QColor(self.canvas.tokens.get("error", "#ffb4ab")))
             self.list.addItem(it)
         self.summary.setText(f"Найдено проблем: {len(errs)}. "

@@ -22,9 +22,7 @@ jobs:
           python-version: '3.12'
 
       - name: Установить зависимости
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install PySide6 numpy pyinstaller
+        run: python -m pip install --upgrade pip; python -m pip install PySide6 numpy pyinstaller
 
       - name: Проверка импорта и ядра
         run: |
@@ -32,7 +30,9 @@ jobs:
 
       - name: Сборка исполняемого файла
         run: |
-          pyinstaller --noconfirm --clean --windowed --name e-cad --add-data "assets;assets" --add-data "examples;examples" main.py
+          pyinstaller --noconfirm --clean --windowed --onefile --name e-cad --add-data "assets;assets" --add-data "examples;examples" main.py
+          Get-ChildItem -Recurse dist | Select-Object FullName, Length | Format-Table -AutoSize
+          if (-not (Test-Path "dist\e-cad.exe")) { throw "dist\e-cad.exe не найден" }
 
       - name: Архив сборки
         uses: actions/upload-artifact@v4

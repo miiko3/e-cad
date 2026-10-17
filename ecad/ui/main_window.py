@@ -156,8 +156,8 @@ class MainWindow(QMainWindow):
         right.setChildrenCollapsible(False)
         self.right_tabs = QTabWidget()
         self.right_tabs.setElideMode(Qt.TextElideMode.ElideRight)
-        self.right_tabs.setMinimumWidth(330)
-        self.right_tabs.setMaximumWidth(420)
+        self.right_tabs.setMinimumWidth(340)
+        self.right_tabs.setMaximumWidth(440)
         self.pane_lib = LibraryPanel(self.canvas, self.library)
         self.pane_props = PropertiesPanel(self.canvas)
         self.pane_drc = DrcPanel(self.canvas)
@@ -176,7 +176,7 @@ class MainWindow(QMainWindow):
             self.right_tabs.setTabToolTip(i, full)
         right.addWidget(self.right_tabs)
         split.addWidget(right)
-        split.setSizes([250, 920, 360])
+        split.setSizes([250, 900, 380])
         root.addWidget(split, 1)
 
         # статус-бар
