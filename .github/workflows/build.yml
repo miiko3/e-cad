@@ -5,6 +5,9 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: windows-latest
@@ -31,7 +34,6 @@ jobs:
       - name: Сборка исполняемого файла
         run: |
           pyinstaller --noconfirm --clean --windowed --onefile --name e-cad --add-data "assets;assets" --add-data "examples;examples" main.py
-          Get-ChildItem -Recurse dist | Select-Object FullName, Length | Format-Table -AutoSize
           if (-not (Test-Path "dist\e-cad.exe")) { throw "dist\e-cad.exe не найден" }
 
       - name: Архив сборки
@@ -40,10 +42,4 @@ jobs:
           name: e-cad-windows
           path: dist/e-cad.exe
           if-no-files-found: error
-
-      - name: Создать релиз
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/e-cad.exe
-          generate_release_notes: true
+          retention-days: 90

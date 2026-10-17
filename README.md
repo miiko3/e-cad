@@ -24,9 +24,15 @@ python main.py          # или запустите run.bat
 Требуется Python 3.10+. Проекты сохраняются в собственном формате `*.ecad`
 (мультиплатный), автосохранение — `*.BAK` рядом с файлом.
 
-Готовые сборки: вкладка **Actions** → запуск workflow «Сборка e-cad»
-(артефакт `e-cad-windows`); тег `v1.1.0` создаёт релиз с `e-cad.exe`.
-Локальная сборка: `pyinstaller --windowed --name e-cad --add-data "assets;assets" main.py`
+Готовые сборки: вкладка **Actions** → workflow «Сборка e-cad» → **Run workflow**.
+Готовый `e-cad.exe` скачивается из артефакта `e-cad-windows` (≈60 МБ).
+Теги `v*` также запускают сборку автоматически.
+
+Локальная сборка:
+```bash
+pip install pyinstaller
+pyinstaller --windowed --onefile --name e-cad --add-data "assets;assets" --add-data "examples;examples" main.py
+```
 
 ### 2. Структура интерфейса
 
