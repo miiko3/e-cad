@@ -13,8 +13,8 @@ from .model import (Board, CircleEl, Component, Connection, Element, Pad,
                     PolygonEl, RectEl, SmdPad, TextEl, TOP_KEY, Track, nets)
 
 
-# ------------------------------------------------------------------ макросы
-#: версия встроенной библиотеки (рост — устаревшие макросы перезаписываются)
+
+
 MACRO_VERSION = 2
 
 
@@ -69,7 +69,7 @@ class Macro:
             e.move(x - cx, y - cy)
             if side == "bottom":
                 e.flip_layer()
-            e.id = ""            # идентификатор выдаёт вызывающая сторона
+            e.id = ""            
             out.append(e)
         return out
 
@@ -173,7 +173,7 @@ def _safe_name(*parts: str) -> str:
     return "".join(c for c in out if c not in bad).strip() or "macro"
 
 
-# --------------------------------------------------------- мастер площадок
+
 WIZARD_TYPES = [
     ("sip", "Однорядный (SIP)"),
     ("dip", "Двухрядный (DIP)"),
@@ -234,7 +234,7 @@ def footprint_wizard(kind: str, pads: int = 8, pitch: float = 2.54,
                 a = math.radians(360.0 * (i + 0.5) / pads)
                 els.append(_pad_at(r2 * math.cos(a), r2 * math.sin(a), pad_dia,
                                    hole_dia, smd, smd_w, smd_h, layer, False))
-    # контур корпуса на маркировке
+    
     els.append(RectEl(layer="K1", x0=-body_w / 2, y0=-body_l / 2,
                       x1=body_w / 2, y1=body_l / 2, width=0.2))
     els.append(CircleEl(layer="K1", cx=-body_w / 2, cy=-body_l / 2, r=0.25, width=0.2))
@@ -251,7 +251,7 @@ def _pad_at(x, y, pad_dia, hole_dia, smd, smd_w, smd_h, layer, square_first):
     return p
 
 
-# ---------------------------------------------------------------- автотрасса
+
 @dataclass
 class RouteParams:
     width: float = 0.4
@@ -379,7 +379,7 @@ def _seg_dist(a, b, c, d) -> float:
     return seg_seg_dist(a, b, c, d)
 
 
-# ------------------------------------------------------------ автоинкремент
+
 def auto_refdes(board: Board, kind: str = "R", start: int = 1) -> str:
     used = {c.refdes for c in board.components}
     n = start

@@ -4,8 +4,8 @@ from __future__ import annotations
 import os
 import sys
 
-# Ограничиваем потоки BLAS: в собранном .exe OpenBLAS пытается выделить память
-# под все ядра процессора и падает с «Memory allocation still failed».
+
+
 for _var in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
              "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
     os.environ.setdefault(_var, "1")

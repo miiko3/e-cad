@@ -70,7 +70,7 @@ class MainWindow(QMainWindow):
         self._autosave_timer.timeout.connect(self._autosave)
         self._autosave_timer.start(60000)
 
-    # ------------------------------------------------------------ интерфейс
+    
     def _build_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
@@ -78,7 +78,7 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # верхняя панель приложения
+        
         top = QFrame()
         top.setObjectName("TopBar")
         top.setFixedHeight(52)
@@ -126,7 +126,7 @@ class MainWindow(QMainWindow):
             th.addWidget(b)
         root.addWidget(top)
 
-        # центральная область
+        
         split = QSplitter(Qt.Orientation.Horizontal)
         split.setChildrenCollapsible(False)
         self.tool_panel = ToolPanel(self.canvas)
@@ -139,7 +139,7 @@ class MainWindow(QMainWindow):
         self.canvas.setParent(mid)
         mv.addWidget(self.canvas, 1)
 
-        # закладки плат
+        
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tabs.setMaximumHeight(36)
@@ -151,7 +151,7 @@ class MainWindow(QMainWindow):
         mv.addWidget(self.tabs)
         split.addWidget(mid)
 
-        # правая панель (вкладки)
+        
         right = QSplitter(Qt.Orientation.Vertical)
         right.setChildrenCollapsible(False)
         self.right_tabs = QTabWidget()
@@ -179,11 +179,11 @@ class MainWindow(QMainWindow):
         split.setSizes([250, 900, 380])
         root.addWidget(split, 1)
 
-        # статус-бар
+        
         self.status_panel = StatusBar(self.canvas)
         root.addWidget(self.status_panel)
 
-    # ---------------------------------------------------------------- меню
+    
     def _act(self, menu, text, slot, shortcut=None, tip=None) -> QAction:
         a = QAction(text, self)
         if shortcut:
@@ -196,7 +196,7 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self):
         mb = self.menuBar()
-        # Файл
+        
         m = mb.addMenu("Файл")
         self._act(m, "Новый…", self.new_project, "Ctrl+N", "Создать новый проект (3 шаблона)")
         self._act(m, "Открыть…", self.open_project, "Ctrl+O")
@@ -222,7 +222,7 @@ class MainWindow(QMainWindow):
         self._act(m, "Печать…", self.print_board, "Ctrl+P", "Печать 1:1 с выбором слоёв")
         self._act(m, "Выход", self.close)
 
-        # Правка
+        
         m = mb.addMenu("Правка")
         self._act(m, "Отменить", self.canvas.undo, "Ctrl+Z")
         self._act(m, "Восстановить", self.canvas.redo, "Ctrl+Y")
@@ -246,7 +246,7 @@ class MainWindow(QMainWindow):
         self._act(m, "Удалить виртуальные соединения", self.delete_satisfied_conns)
         self._act(m, "Удалить элементы вне платы", self.delete_outside)
 
-        # Действия
+        
         m = mb.addMenu("Действия")
         self._act(m, "Повернуть…", lambda: self._rotate_dialog(), "Ctrl+R")
         self._act(m, "Повернуть 90°", lambda: self.canvas.rotate_selected(90))
@@ -274,7 +274,7 @@ class MainWindow(QMainWindow):
         self._act(m, "Создать компонент из выделенного", self.make_component)
         self._act(m, "Перенумеровать компоненты (автоинкремент)", self.auto_number)
 
-        # Плата
+        
         m = mb.addMenu("Плата")
         self._act(m, "Новая плата…", self.new_board)
         self._act(m, "Свойства платы…", self.board_props)
@@ -290,7 +290,7 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         self._act(m, "Таблица отверстий", self.show_holes)
 
-        # Авто-земля
+        
         m = mb.addMenu("Заливка")
         self._act(m, "Залить / пересчитать металлизацию", lambda: self.canvas.apply_fill())
         self._act(m, "Снять заливку", self.canvas.clear_fills)
@@ -301,7 +301,7 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         self._act(m, "Проверить тонкие «мостики» заливки", self.check_bridges)
 
-        # Опции
+        
         m = mb.addMenu("Опции")
         self._act(m, "Общие настройки…", self.open_options, "Ctrl+Shift+O",
                   "Единицы, цвета, металлизация, клавиши, глубина Undo")
@@ -321,7 +321,7 @@ class MainWindow(QMainWindow):
         self._act(m, "Проверить тонкие «мостики» заливки", self.check_bridges)
         self._act(m, "Открыть демо-проект (examples/demo.ecad)", self.open_demo)
 
-        # Вид
+        
         m = mb.addMenu("Вид")
         self._act(m, "Лупа всей платы", self.canvas.zoom_all, "Home")
         self._act(m, "Лупа всех объектов", self.canvas.zoom_objects)
@@ -342,14 +342,14 @@ class MainWindow(QMainWindow):
         for key, name, hot, ic in TOOLS:
             self._act(m, f"{name}  ({hot})", lambda _c=False, k=key: self.set_tool(k), hot)
 
-        # Справка
+        
         m = mb.addMenu("Справка")
         self._act(m, "Инструкция по использованию", self.open_help, "F1")
         self._act(m, "О программе · блок «Актор»", self.open_about)
         self._act(m, "Горячие клавиши", self.show_keys)
         self._act(m, "Структура платы и цвета слоёв", self.show_layer_info)
 
-    # ------------------------------------------------------------- сигналы
+    
     def _connect(self):
         c = self.canvas
         c.toolChanged.connect(self.tool_panel.set_tool)
@@ -373,7 +373,7 @@ class MainWindow(QMainWindow):
     def _place_macro(self, macro):
         self.canvas.start_macro_place(macro)
 
-    # ------------------------------------------------------------ действия
+    
     def _status(self, text: str):
         self.statusBar().showMessage(text, 6000)
 
@@ -755,7 +755,7 @@ Ctrl+P  печать
     def _message(self, title, text):
         QMessageBox.information(self, title, text)
 
-    # ------------------------------------------------------------- файлы
+    
     def new_project(self):
         if not self._maybe_save():
             return
@@ -946,7 +946,7 @@ Ctrl+P  печать
     def print_board(self):
         dlg.PrintDialog(self.canvas).exec()
 
-    # ------------------------------------------------------------- платы
+    
     def new_board(self):
         d = NewBoardDialog(self.canvas, title="Новая плата")
         if d.exec():
@@ -1026,7 +1026,7 @@ Ctrl+P  печать
         self.tabs.setCurrentIndex(min(self.doc.active, self.tabs.count() - 1))
         self.tabs.blockSignals(False)
 
-    # --------------------------------------------------------- обновление
+    
     def refresh_all(self):
         self.status_panel.refresh()
         self.tool_panel.refresh()
@@ -1037,7 +1037,7 @@ Ctrl+P  печать
         self._refresh_tabs()
         self._doc_label()
 
-    # ------------------------------------------------------ горячие клавиши
+    
     def keyPressEvent(self, ev):
         key = ev.key()
         for hot, tool in self.canvas.settings["keys"].items():
@@ -1064,7 +1064,7 @@ Ctrl+P  печать
             return
         super().keyPressEvent(ev)
 
-    # ------------------------------------------------------------ закрытие
+    
     def _maybe_save(self) -> bool:
         if not self.doc.dirty:
             return True

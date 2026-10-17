@@ -76,7 +76,7 @@ def check(board: Board, rules: Optional[Dict] = None, window: Optional[Tuple[flo
     pads = [el for el in els if isinstance(el, Pad)]
     smds = [el for el in els if isinstance(el, SmdPad)]
 
-    # --- 1 минимальный зазор (по слоям) --------------------------------
+    
     by_layer: Dict[str, List[Element]] = {}
     for el in conductive:
         for lk in pad_layers(el):
@@ -102,7 +102,7 @@ def check(board: Board, rules: Optional[Dict] = None, window: Optional[Tuple[flo
                             "min_clearance", lk, [ei.id, ej.id],
                             bbox_union([boxes[ei.id], boxes[ej.id]]),
                             f"Зазор {_fmt(gap)} мм < {_fmt(clr)} мм"))
-    # --- 2 зазор между отверстиями ------------------------------------
+    
     holes = [el for el in pads if el.hole_dia > 0]
     for i in range(len(holes)):
         for j in range(i + 1, len(holes)):
@@ -113,7 +113,7 @@ def check(board: Board, rules: Optional[Dict] = None, window: Optional[Tuple[flo
                     "min_hole_gap", "M1", [a.id, b.id],
                     bbox_union([a.bbox(), b.bbox()]),
                     f"Зазор между отверстиями {_fmt(d)} мм < {r['min_hole_gap']} мм"))
-    # --- 3/4 диаметры отверстий ---------------------------------------
+    
     for p in pads:
         if p.hole_dia <= 0:
             continue
@@ -123,24 +123,24 @@ def check(board: Board, rules: Optional[Dict] = None, window: Optional[Tuple[flo
         if p.hole_dia > r["max_hole"] + 1e-6:
             errors.append(DrcError("max_hole", "M1", [p.id], p.bbox(),
                                    f"Отверстие {_fmt(p.hole_dia)} мм > {r['max_hole']} мм"))
-    # --- 5 минимальная ширина дорожки ----------------------------------
+    
     for t in els:
         if isinstance(t, Track) and t.width < r["min_track"] - 1e-6:
             errors.append(DrcError("min_track", t.layer, [t.id], t.bbox(),
                                    f"Дорожка {_fmt(t.width)} мм < {r['min_track']} мм"))
-    # --- 6 минимальный бордюр ------------------------------------------
+    
     for p in pads:
         ring = (min(p.outer()) - p.hole_dia) / 2
         if ring < r["min_annular"] - 1e-6:
             errors.append(DrcError("min_annular", "M1", [p.id], p.bbox(),
                                    f"Бордюр {_fmt(ring)} мм < {r['min_annular']} мм"))
-    # --- 7 минимальная линия маркировки --------------------------------
+    
     for s in silks:
         w = _silk_width(s)
         if w is not None and w < r["min_silk"] - 1e-6:
             errors.append(DrcError("min_silk", s.layer, [s.id], s.bbox(),
                                    f"Маркировка {_fmt(w)} мм < {r['min_silk']} мм"))
-    # --- 8 маркировка над контактом ------------------------------------
+    
     if r["silk_over_pad"]:
         contact_boxes = []
         for el in pads + smds:
@@ -154,7 +154,7 @@ def check(board: Board, rules: Optional[Dict] = None, window: Optional[Tuple[flo
                     errors.append(DrcError("silk_over_pad", s.layer, [s.id, cid], cb,
                                            "Линия маркировки проходит над контактом"))
                     break
-    # --- 9 отверстие в SMD-площадке ------------------------------------
+    
     if r["hole_in_smd"]:
         for s in smds:
             sb = s.bbox()
@@ -166,13 +166,13 @@ def check(board: Board, rules: Optional[Dict] = None, window: Optional[Tuple[flo
                 if _bbox_touch(sb, pb, 0.0):
                     errors.append(DrcError("hole_in_smd", s.layer, [s.id, p.id], pb,
                                            "Отверстие попадает в зону SMD-площадки"))
-    # --- 10 КП без открытия маски --------------------------------------
+    
     if r["pad_no_mask"]:
         for el in pads + smds:
             if not el.mask_open:
                 errors.append(DrcError("pad_no_mask", el.layer, [el.id], el.bbox(),
                                        "Нет открытия окна в паяльной маске"))
-    # --- 11 маска на элементе не-КП -------------------------------------
+    
     if r["mask_on_nonpad"]:
         for el in els:
             if el.mask_open and not isinstance(el, (Pad, SmdPad)):

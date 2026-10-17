@@ -106,7 +106,7 @@ class BoardPropsDialog(BaseDialog):
         b.multilayer = self.multi.isChecked()
 
 
-# ---------------------------------------------------------------- импорт
+
 class GerberImportDialog(BaseDialog):
     """Импорт Gerber RS-274X по слоям + сверловка Excellon."""
 
@@ -198,7 +198,7 @@ class GerberImportDialog(BaseDialog):
             if it.checkState() == Qt.CheckState.Checked:
                 lk = it.data(Qt.ItemDataRole.UserRole)
                 mapping[lk] = it
-        # файлы распределяем по слоям в порядке следования
+        
         els_by_layer = {}
         log = []
         lks = [it.data(Qt.ItemDataRole.UserRole) for it in mapping.values()]

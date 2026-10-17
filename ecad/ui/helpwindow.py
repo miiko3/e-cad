@@ -309,7 +309,7 @@ class HelpWindow(QDialog):
         anchor = it.data(Qt.ItemDataRole.UserRole)
         self.view.scrollToAnchor(anchor)
         sb = self.view.verticalScrollBar()
-        sb.setValue(sb.value())          # Qt иногда не применяет прокрутку сразу
+        sb.setValue(sb.value())          
 
     def _about(self):
         from .about import AboutDialog

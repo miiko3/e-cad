@@ -112,10 +112,10 @@ def render_pdf(canvas, path: str, layers: Optional[Sequence[str]] = None,
     return path
 
 
-from PySide6.QtCore import QSizeF  # noqa: E402  (используется в render_pdf)
+from PySide6.QtCore import QSizeF  
 
 
-# ------------------------------------------------------ печать на принтере
+
 def print_board(canvas, printer, layers: Sequence[str], scale: float = 1.0,
                 mirror_all: bool = False, mirror_bottom: bool = False,
                 black_white: bool = False, holes: bool = False,

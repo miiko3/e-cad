@@ -14,7 +14,7 @@ EPS = 1e-9
 Pt = Tuple[float, float]
 
 
-# ---------------------------------------------------------------- базовые
+
 def dist(a: Pt, b: Pt) -> float:
     return math.hypot(b[0] - a[0], b[1] - a[1])
 
@@ -195,7 +195,7 @@ def flatten(el, layer: str) -> List[Pt]:
     return list(getattr(el, "outline_points", lambda: [])())
 
 
-# ------------------------------------------------------- растровые утилиты
+
 class Raster:
     """Растровое поле по прямоугольнику с шагом cell (мм)."""
 
@@ -207,7 +207,7 @@ class Raster:
         self.ny = max(1, int(math.ceil((y1 - y0) / cell)))
         self.mask = np.zeros((self.ny, self.nx), dtype=bool)
 
-    # --- координаты
+    
     def cx(self) -> np.ndarray:
         return self.x0 + (np.arange(self.nx) + 0.5) * self.cell
 
@@ -228,7 +228,7 @@ class Raster:
         j1 = min(self.ny, int(math.ceil((y1 - self.y0) / self.cell)) + 1)
         return i0, j0, i1, j1
 
-    # --- примитивы
+    
     def line(self, a: Pt, b: Pt, width: float = 0.0):
         r = width / 2.0
         box = (min(a[0], b[0]) - r, min(a[1], b[1]) - r,

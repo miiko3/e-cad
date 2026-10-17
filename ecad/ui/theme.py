@@ -9,7 +9,7 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPen, Q
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
 
 
-# ------------------------------------------------------------ токены MD3
+
 class Palette:
     """Токены Material Design 3 (тёмная и светлая схемы)."""
 
@@ -112,7 +112,7 @@ def tokens(dark: bool = True) -> Dict[str, str]:
     return dict(Palette.DARK if dark else Palette.LIGHT)
 
 
-# --------------------------------------------------------------- шрифты
+
 _UI_CANDIDATES = ["Segoe UI Variable Display", "Segoe UI", "Inter", "Roboto", "Arial"]
 _MONO_CANDIDATES = ["Cascadia Mono", "Consolas", "JetBrains Mono", "Courier New"]
 
@@ -139,7 +139,7 @@ def mono_font(size: int = 9) -> QFont:
     return f
 
 
-# ------------------------------------------------------------------ QSS
+
 def stylesheet(t: Dict[str, str]) -> str:
     """Таблица стилей MD3 по токенам."""
     return f"""
@@ -474,7 +474,7 @@ QSlider::sub-page:horizontal {{ background: {t['primary']}; border-radius: 2px; 
 """
 
 
-# ----------------------------------------------------------- иконки MD3
+
 def _pixmap(size: int, color: str) -> QPixmap:
     pm = QPixmap(size, size)
     pm.fill(Qt.GlobalColor.transparent)

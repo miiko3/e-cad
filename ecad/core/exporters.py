@@ -1,4 +1,4 @@
-"""Р­РєСЃРїРѕСЂС‚: Gerber RS-274X, Excellon, HPGL, Pick+Place, BOM, С‚РµРєСЃС‚РѕРІС‹Р№ IO."""
+"""Экспорт: Gerber RS-274X, Excellon, HPGL, Pick+Place, BOM, текстовый IO."""
 from __future__ import annotations
 
 import math
@@ -12,30 +12,30 @@ from .model import (ALL_LAYERS, BOTTOM_KEY, COPPER_KEYS, LAYER_BY_KEY, TOP_KEY,
                     Pad, PolygonEl, RectEl, SmdPad, TextEl, Track, nets)
 
 GERBER_COMPOSITION = {
-    TOP_KEY: ("copper_top", "Рњ1 вЂ” РІРµСЂС…РЅСЏСЏ РјРµРґСЊ"),
-    BOTTOM_KEY: ("copper_bottom", "Рњ2 вЂ” РЅРёР¶РЅСЏСЏ РјРµРґСЊ"),
-    "V1": ("copper_in1_top", "Р’1 вЂ” РІРЅСѓС‚СЂРµРЅРЅСЏСЏ РјРµРґСЊ"),
-    "V2": ("copper_in2_bottom", "Р’2 вЂ” РІРЅСѓС‚СЂРµРЅРЅСЏСЏ РјРµРґСЊ"),
-    "K1": ("silkscreen_top", "Рљ1 вЂ” РјР°СЂРєРёСЂРѕРІРєР° СЃРІРµСЂС…Сѓ"),
-    "K2": ("silkscreen_bottom", "Рљ2 вЂ” РјР°СЂРєРёСЂРѕРІРєР° СЃРЅРёР·Сѓ"),
-    "O": ("outline", "Рћ вЂ” РєРѕРЅС‚СѓСЂ"),
+    TOP_KEY: ("copper_top", "М1 — верхняя медь"),
+    BOTTOM_KEY: ("copper_bottom", "М2 — нижняя медь"),
+    "V1": ("copper_in1_top", "В1 — внутренняя медь"),
+    "V2": ("copper_in2_bottom", "В2 — внутренняя медь"),
+    "K1": ("silkscreen_top", "К1 — маркировка сверху"),
+    "K2": ("silkscreen_bottom", "К2 — маркировка снизу"),
+    "O": ("outline", "О — контур"),
 }
-MASK_TOP = ("soldermask_top", "РњР°СЃРєР° СЃРІРµСЂС…Сѓ")
-MASK_BOTTOM = ("soldermask_bottom", "РњР°СЃРєР° СЃРЅРёР·Сѓ")
-PASTE_TOP = ("paste_top", "РўСЂР°С„Р°СЂРµС‚ РїРѕРґ РїР°СЃС‚Сѓ (SMD)")
+MASK_TOP = ("soldermask_top", "Маска сверху")
+MASK_BOTTOM = ("soldermask_bottom", "Маска снизу")
+PASTE_TOP = ("paste_top", "Трафарет под пасту (SMD)")
 
 
 _TRANS = {
-    "Р°": "a", "Р±": "b", "РІ": "v", "Рі": "g", "Рґ": "d", "Рµ": "e", "С‘": "e", "Р¶": "zh",
-    "Р·": "z", "Рё": "i", "Р№": "y", "Рє": "k", "Р»": "l", "Рј": "m", "РЅ": "n", "Рѕ": "o",
-    "Рї": "p", "СЂ": "r", "СЃ": "s", "С‚": "t", "Сѓ": "u", "С„": "f", "С…": "h", "С†": "c",
-    "С‡": "ch", "С€": "sh", "С‰": "sch", "СЉ": "", "С‹": "y", "СЊ": "", "СЌ": "e", "СЋ": "yu",
-    "СЏ": "ya", "вЂ”": "-", "вЂ“": "-", " ": "_", "в„–": "No.",
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e", "ж": "zh",
+    "з": "z", "и": "i", "й": "y", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o",
+    "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f", "х": "h", "ц": "c",
+    "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu",
+    "я": "ya", "—": "-", "–": "-", " ": "_", "№": "No.",
 }
 
 
 def ascii_safe(text: str) -> str:
-    """РўСЂР°РЅСЃР»РёС‚РµСЂР°С†РёСЏ РєРёСЂРёР»Р»РёС†С‹ вЂ” С„Р°Р№Р»С‹ Gerber/Excellon РґРѕР»Р¶РЅС‹ Р±С‹С‚СЊ РІ ASCII."""
+    """Транслитерация кириллицы — файлы Gerber/Excellon должны быть в ASCII."""
     out = []
     for ch in text or "":
         low = ch.lower()
@@ -54,7 +54,7 @@ def _f(v: float, digits: int = 4, commas: bool = False) -> str:
     return s
 
 
-# ------------------------------------------------------------------ Gerber
+
 class GerberWriter:
     def __init__(self, mirror: bool = False, header_comment: str = "e-cad"):
         self.apertures: Dict[str, float] = {}
@@ -71,7 +71,7 @@ class GerberWriter:
             self.ap_list.append((key, spec))
         return f"D{self.apertures[key]}"
 
-    # --- РїСЂРёРјРёС‚РёРІС‹ -------------------------------------------------
+    
     def flash(self, code: str, x: float, y: float):
         self.body.append(f"{code}*")
         self.body.append(f"X{_f(x)}Y{_f(-y)}D03*")
@@ -150,7 +150,7 @@ def gerber_layer(board: Board, layer: str, mirror: bool = False,
                  mask_smd: float = 0.1, mask_other: float = 0.0,
                  invert_mask: bool = False, outline_in_mask: bool = True,
                  mask_mode: str = "") -> str:
-    """РЎС„РѕСЂРјРёСЂРѕРІР°С‚СЊ Gerber-С„Р°Р№Р» РѕРґРЅРѕРіРѕ СЃР»РѕСЏ. mask_mode: '' | 'solder' | 'paste'."""
+    """Сформировать Gerber-файл одного слоя. mask_mode: '' | 'solder' | 'paste'."""
     gw = GerberWriter(mirror)
     elements = [el for el in board.elements.values() if el.layer == layer and el.kind != "conn"]
 
@@ -235,7 +235,7 @@ def _flash_pad(gw: GerberWriter, el: Pad):
 
 
 def _flash_pad_ring(gw: GerberWriter, el: Pad, hole_center: float):
-    """РџР»РѕС‰Р°РґРєР° СЃ РѕС‚РєСЂС‹С‚С‹Рј РѕС‚РІРµСЂСЃС‚РёРµРј: РѕР±Р»Р°СЃС‚СЊ РјРёРЅСѓСЃ РѕРєСЂСѓР¶РЅРѕСЃС‚СЊ РѕС‚РІРµСЂСЃС‚РёСЏ."""
+    """Площадка с открытым отверстием: область минус окружность отверстия."""
     w, h = el.outer()
     hole = max(el.hole_dia, 0.05)
     outer: List[Tuple[float, float]]
@@ -264,7 +264,7 @@ def _flash_smd(gw: GerberWriter, el: SmdPad):
 def _gerber_mask(gw: GerberWriter, board: Board, elements, layer: str,
                  gap_tht: float, gap_smd: float, gap_other: float,
                  invert: bool, outline_in_mask: bool):
-    """РњР°СЃРєР°: РєРѕРЅС‚СѓСЂ РїР»Р°С‚С‹ (С‚С‘РјРЅРѕРµ) + РѕРєРЅР° (СЃРІРµС‚Р»РѕРµ)."""
+    """Маска: контур платы (тёмное) + окна (светлое)."""
     outline = board.outline_points()
     if not outline_in_mask:
         outline = []
@@ -310,7 +310,7 @@ def export_gerber_set(board: Board, folder: str, layers: Sequence[str],
                       invert_mask: bool = False, solder_mask: bool = True,
                       paste_mask: bool = True, composition: Optional[Dict[str, tuple]] = None,
                       log=None) -> List[str]:
-    """РЎРѕР·РґР°С‚СЊ РЅР°Р±РѕСЂ Gerber-С„Р°Р№Р»РѕРІ РїРѕ СЃР»РѕСЏРј. Р’РѕР·РІСЂР°С‰Р°РµС‚ СЃРїРёСЃРѕРє РёРјС‘РЅ С„Р°Р№Р»РѕРІ."""
+    """Создать набор Gerber-файлов по слоям. Возвращает список имён файлов."""
     comp = dict(GERBER_COMPOSITION)
     if composition:
         comp.update(composition)
@@ -321,7 +321,7 @@ def export_gerber_set(board: Board, folder: str, layers: Sequence[str],
             f.write(text)
         made.append(fn)
         if log:
-            log(f"  {fn} вЂ” {note or str(len(text.splitlines())) + ' СЃС‚СЂРѕРє'}")
+            log(f"  {fn} — {note or str(len(text.splitlines())) + ' строк'}")
 
     for lk in layers:
         name = comp.get(lk, (lk.lower(), lk))[0]
@@ -329,9 +329,9 @@ def export_gerber_set(board: Board, folder: str, layers: Sequence[str],
             text = gerber_layer(board, lk, mirror=lk in mirror, add_outline=add_outline,
                                 open_holes=open_holes, hole_center=hole_center)
             save(f"{base_name}_{name}.gbr", text, comp.get(lk, (lk,))[1])
-        except Exception as e:  # pragma: no cover
+        except Exception as e:  
             if log:
-                log(f"  РѕС€РёР±РєР° СЃР»РѕСЏ {lk}: {e}")
+                log(f"  ошибка слоя {lk}: {e}")
 
     if solder_mask:
         for side, lk in (("top", TOP_KEY), ("bottom", BOTTOM_KEY)):
@@ -339,22 +339,22 @@ def export_gerber_set(board: Board, folder: str, layers: Sequence[str],
                 text = gerber_layer(board, lk, mask_mode="solder", mask_tht=mask_tht,
                                     mask_smd=mask_smd, mask_other=mask_other,
                                     invert_mask=invert_mask)
-                save(f"{base_name}_{'soldermask_' + side}.gbr", text, f"РјР°СЃРєР° {side}")
-            except Exception as e:  # pragma: no cover
+                save(f"{base_name}_{'soldermask_' + side}.gbr", text, f"маска {side}")
+            except Exception as e:  
                 if log:
-                    log(f"  РѕС€РёР±РєР° РјР°СЃРєРё {side}: {e}")
+                    log(f"  ошибка маски {side}: {e}")
 
     if paste_mask:
         try:
             text = gerber_layer(board, TOP_KEY, mask_mode="paste", mask_smd=mask_smd)
-            save(f"{base_name}_paste_top.gbr", text, "С‚СЂР°С„Р°СЂРµС‚ РїРѕРґ РїР°СЃС‚Сѓ (SMD)")
-        except Exception as e:  # pragma: no cover
+            save(f"{base_name}_paste_top.gbr", text, "трафарет под пасту (SMD)")
+        except Exception as e:  
             if log:
-                log(f"  РѕС€РёР±РєР° РїР°СЃС‚С‹: {e}")
+                log(f"  ошибка пасты: {e}")
     return made
 
 
-# ---------------------------------------------------------------- Excellon
+
 def excellon(board: Board, side: str = "top", only_plated: bool = True,
              unit: str = "mm", int_digits: int = 3, dec_digits: int = 3,
              strip_zeros: bool = False, comma: bool = False,
@@ -426,14 +426,14 @@ def export_excellon(board: Board, folder: str, base_name: str = "", **kw) -> str
     return fn
 
 
-# -------------------------------------------------------------------- HPGL
+
 def hpgl(board: Board, mill_dia: float = 1.0, side: str = "top",
          drill_kerf: bool = False, passes: int = 1, overlap: float = 50.0,
          holes_mode: str = "all_one", contour: bool = True,
          marks: int = 2, marks_dist: float = 3.0, text_mode: str = "contour",
          selected: Optional[Sequence[str]] = None, min_feed: bool = False,
          scale_0025: bool = False) -> Tuple[str, List[str]]:
-    unit = 400.0 if scale_0025 else 1015.0 / 25.4 / 10.0  # 0.025 РјРј/РµРґ в†’ 40 РµРґ/РјРј
+    unit = 400.0 if scale_0025 else 1015.0 / 25.4 / 10.0  
     scale = 40.0 if scale_0025 else 1000.0 / 25.4
     ops: List[str] = []
     log: List[str] = []
@@ -444,7 +444,7 @@ def hpgl(board: Board, mill_dia: float = 1.0, side: str = "top",
     def to_px(x, y):
         return P(x, y)
 
-    unit = 400.0 if scale_0025 else 1015.0 / 25.4 / 10.0  # 0.025 РјРј/РµРґ в†’ 40 РµРґ/РјРј
+    unit = 400.0 if scale_0025 else 1015.0 / 25.4 / 10.0  
     scale = 40.0 if scale_0025 else 1000.0 / 25.4
     ops: List[str] = []
     log: List[str] = []
@@ -459,7 +459,7 @@ def hpgl(board: Board, mill_dia: float = 1.0, side: str = "top",
     if selected:
         elements = [el for el in elements if el.id in set(selected)]
 
-    # 1. РёР·РѕР»РёСЂСѓСЋС‰Р°СЏ С„СЂРµР·Р°
+    
     ops.append(f"SP{mill_dia:g};")
     log.append(f"РР·РѕР»РёСЂСѓСЋС‰РёРµ РґРѕСЂРѕР¶РєРё: С„СЂРµР·Р° {mill_dia:g} РјРј, {side}")
     for el in elements:
@@ -481,19 +481,19 @@ def hpgl(board: Board, mill_dia: float = 1.0, side: str = "top",
                 ops.append(to_px(r[0], r[3]))
                 ops.append(to_px(r[0], r[1]))
                 ops.append("PU;")
-    # 2. СЃРІРµСЂР»РµРЅРёРµ
+    
     holes = [(el.x, el.y, el.hole_dia) for el in board.elements.values()
              if isinstance(el, Pad) and el.hole_dia > 0]
     if holes_mode == "all_one":
-        log.append("РћС‚РІРµСЂСЃС‚РёСЏ: С„СЂРµР·РµСЂРѕРІР°С‚СЊ РѕРґРЅРѕР№ С„СЂРµР·РѕР№ (CI)")
+        log.append("Отверстия: фрезеровать одной фрезой (CI)")
         ops.append(f"CI{mill_dia:g};")
         ops.append(";")
     elif holes_mode == "one_dia":
         dia = holes[0][2] if holes else 0.8
         ops.append(f"PD{dia:g};")
-        log.append(f"РЎРІРµСЂР»РёС‚СЊ PD {dia:g} РјРј")
+        log.append(f"Сверлить PD {dia:g} мм")
     else:
-        log.append("РЎРІРµСЂР»РёС‚СЊ PD С‚СЂРµР±СѓРµРјС‹РјРё РґРёР°РјРµС‚СЂР°РјРё")
+        log.append("Сверлить PD требуемыми диаметрами")
         seen = set()
         for x, y, d in sorted(holes, key=lambda h: -h[2]):
             if round(d, 4) in seen:
@@ -505,7 +505,7 @@ def hpgl(board: Board, mill_dia: float = 1.0, side: str = "top",
         ops.append("PD;" if holes_mode != "all_one" else "CI;")
         ops.append(to_px(x, y))
         ops.append("PU;")
-    # 3. РєРѕРЅС‚СѓСЂ РїР»Р°С‚С‹
+    
     if contour:
         pts = board.outline_points()
         ops.append("SP1;")
@@ -515,8 +515,8 @@ def hpgl(board: Board, mill_dia: float = 1.0, side: str = "top",
             ops.append(to_px(*p))
         ops.append(to_px(*pts[0]))
         ops.append("PU;")
-        log.append("РљРѕРЅС‚СѓСЂ РїР»Р°С‚С‹ С„СЂРµР·РµСЂСѓРµС‚СЃСЏ РїРѕ СЃР»РѕСЋ Рћ (РїРѕ С†РµРЅС‚СЂСѓ)")
-    # 4. СЂРµРїРµСЂРЅС‹Рµ РјРµС‚РєРё
+        log.append("Контур платы фрезеруется по слою О (по центру)")
+    
     if marks:
         b = board.outline_rect()
         xs = [b[0] + marks_dist, b[2] - marks_dist]
@@ -527,7 +527,7 @@ def hpgl(board: Board, mill_dia: float = 1.0, side: str = "top",
         for x, y in pts:
             ops.append(to_px(x, y))
             ops.append("PU;")
-        log.append(f"Р РµРїРµСЂРЅС‹Рµ РјРµС‚РєРё: {marks} С€С‚., РѕС‚СЃС‚СѓРї {marks_dist} РјРј")
+        log.append(f"Реперные метки: {marks} шт., отступ {marks_dist} мм")
     ops.append("PU;SP0;")
     return "\n".join(ops) + "\n", log
 
@@ -542,7 +542,7 @@ def _el_width(el: Element) -> float:
     return 0.0
 
 
-# ------------------------------------------------------- Pick+Place / BOM
+
 DEFAULT_PNP_COLUMNS = [
     ("RefDes", "refdes"), ("Value", "value"), ("Comment", "comment"),
     ("Footprint", "footprint"), ("Layer", "side"),
@@ -554,7 +554,7 @@ def pick_and_place(board: Board, columns: Optional[Sequence[Tuple[str, str]]] = 
                    separator: str = "\t", decimals: int = 3,
                    rot_prefix: str = "R", units: str = "mm") -> str:
     cols = list(columns or DEFAULT_PNP_COLUMNS)
-    lines = ["# e-cad Pick+Place", f"# РџР»Р°С‚Р°: {board.name}", f"# Р•РґРёРЅРёС†С‹: {units}"]
+    lines = ["# e-cad Pick+Place", f"# Плата: {board.name}", f"# Единицы: {units}"]
     header = []
     for title, key in cols:
         if key in ("x", "y") and units == "mil":
@@ -597,9 +597,9 @@ def _num(v: float, units: str, dec: int) -> str:
 def bom_table(board: Board, columns: Sequence[str] = ("refdes", "value", "footprint", "comment", "side")) -> Tuple[List[str], List[List[str]]]:
     head = []
     for c in columns:
-        head.append({"refdes": "РћР±РѕР·РЅР°С‡РµРЅРёРµ", "value": "РќРѕРјРёРЅР°Р»", "footprint": "РљРѕСЂРїСѓСЃ",
-                     "comment": "РљРѕРјРјРµРЅС‚Р°СЂРёР№", "side": "РЎС‚РѕСЂРѕРЅР°", "count": "РљРѕР»-РІРѕ",
-                     "pads": "Р’С‹РІРѕРґРѕРІ"}.get(c, c))
+        head.append({"refdes": "Обозначение", "value": "Номинал", "footprint": "Корпус",
+                     "comment": "Комментарий", "side": "Сторона", "count": "Кол-во",
+                     "pads": "Выводов"}.get(c, c))
     rows = []
     for c in board.components:
         row = []
@@ -614,13 +614,13 @@ def bom_table(board: Board, columns: Sequence[str] = ("refdes", "value", "footpr
 
 def bom_text(board: Board) -> str:
     head, rows = bom_table(board)
-    lines = [f"РЎРїРµС†РёС„РёРєР°С†РёСЏ (BOM) вЂ” {board.name}", "\t".join(head)]
+    lines = [f"Спецификация (BOM) — {board.name}", "\t".join(head)]
     for r in rows:
         lines.append("\t".join(r))
     return "\n".join(lines) + "\n"
 
 
-# ------------------------------------------------------- С‚РµРєСЃС‚РѕРІС‹Р№ СЌРєСЃРїРѕСЂС‚
+
 def text_io(board: Board) -> str:
     out = [f"e-cad text-io 1.0", f"board {board.name}", f"size {board.width} {board.height}"]
     for el in board.elements.values():

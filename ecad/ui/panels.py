@@ -37,7 +37,7 @@ def _lbl(text: str, bold: bool = False, small: bool = False,
         l.setWordWrap(True)
         l.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
     else:
-        # не даём метке обрезать текст по краям
+        
         l.setMinimumWidth(0)
         l.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
     return l
@@ -85,13 +85,13 @@ class ToolPanel(QFrame):
         self._build()
         self.apply_state()
 
-    # ------------------------------------------------------------ сборка
+    
     def _build(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(6, 8, 6, 8)
         outer.setSpacing(6)
 
-        # --- шапка с кнопкой сворачивания
+        
         head = QHBoxLayout()
         head.setSpacing(4)
         self.lbl_tools = _lbl("Инструменты", True)
@@ -109,7 +109,7 @@ class ToolPanel(QFrame):
         head.addWidget(self.btn_collapse)
         outer.addLayout(head)
 
-        # --- сетка инструментов (2 колонки, подписи + клавиши)
+        
         grid = QGridLayout()
         grid.setHorizontalSpacing(4)
         grid.setVerticalSpacing(4)
@@ -133,7 +133,7 @@ class ToolPanel(QFrame):
         self.tool_grid = grid
         outer.addLayout(grid)
 
-        # --- сетка координат
+        
         gb = QGroupBox("Шаг сетки")
         gv = QVBoxLayout(gb)
         gv.setSpacing(4)
@@ -178,12 +178,12 @@ class ToolPanel(QFrame):
         self.grid_group = gb
         outer.addWidget(gb)
 
-        # --- мини-карта
+        
         self.minimap = MiniMap(self.canvas)
         self.minimap.setToolTip("Панорама платы: клик — перейти к участку")
         outer.addWidget(self.minimap, 1)
 
-        # --- кнопки панелей
+        
         self.lbl_panels = _lbl("Панели", True)
         self.lbl_panels.setStyleSheet("font-size: 12px;")
         outer.addWidget(self.lbl_panels)
@@ -212,7 +212,7 @@ class ToolPanel(QFrame):
         self.panels_host.setStyleSheet("background: transparent;")
         outer.addWidget(self.panels_host)
 
-        # компактный (свёрнутый) вариант: те же кнопки в один столбец
+        
         self.panels_compact = QWidget()
         pv = QVBoxLayout(self.panels_compact)
         pv.setContentsMargins(0, 0, 0, 0)
@@ -240,7 +240,7 @@ class ToolPanel(QFrame):
             z.addWidget(b)
         outer.addLayout(z)
 
-    # ------------------------------------------------------ сворачивание
+    
     def toggle_collapsed(self):
         self.collapsed = not self.collapsed
         self.apply_state()
@@ -285,7 +285,7 @@ class ToolPanel(QFrame):
             else:
                 b.setMinimumWidth(88)
                 b.setMaximumWidth(16777215)
-        # переносим кнопки панелей в нужный контейнер (родитель — виджет)
+        
         for i, key in enumerate(self.panel_buttons):
             b = self.panel_buttons[key]
             target = self.panels_compact if c else self.panels_host
@@ -302,7 +302,7 @@ class ToolPanel(QFrame):
         self.panels_compact.setVisible(c)
         self.btn_collapse.setFixedSize(34, 30)
 
-    # ------------------------------------------------------------ события
+    
     def set_tool(self, name: str):
         for k, b in self.buttons.items():
             b.setChecked(k == name)
@@ -411,7 +411,7 @@ class MiniMap(QWidget):
             p.setBrush(col)
             p.drawRect(QRectF(min(a[0], c[0]), min(a[1], c[1]),
                               max(abs(c[0] - a[0]), 1), max(abs(c[1] - a[1]), 1)))
-        # текущий вид
+        
         f = self.canvas.field_rect()
         vx0 = self.canvas.offset.x()
         vy1 = self.canvas.offset.y() + f.height() / self.canvas.scale

@@ -199,7 +199,7 @@ def compute_fill(board: Board, layer: str, clearance: float = 0.25,
                  progress=None) -> FillEl:
     """Построить элемент металлизации для слоя."""
     t0 = time.time()
-    # область интереса
+    
     boxes = []
     outline_pts = board.outline_points()
     boxes.append(bbox_of(outline_pts))
@@ -227,7 +227,7 @@ def compute_fill(board: Board, layer: str, clearance: float = 0.25,
     if not region_mask.any():
         return FillEl(layer=layer, rects=[])
 
-    keep = np.zeros((ny, nx), dtype=bool)     # что заливка НЕ должна заливать
+    keep = np.zeros((ny, nx), dtype=bool)     
     max_clr = clearance
 
     conducts = [el for el in board.elements.values()
@@ -263,7 +263,7 @@ def compute_fill(board: Board, layer: str, clearance: float = 0.25,
         if progress and done % 20 == 0:
             progress(done, total)
 
-    cut = np.zeros((ny, nx), dtype=bool)      # вырезы (негативные элементы)
+    cut = np.zeros((ny, nx), dtype=bool)      
     for el in negs:
         layers = el.copper_layers() if isinstance(el, Pad) else [el.layer]
         if layer not in layers:
@@ -275,7 +275,7 @@ def compute_fill(board: Board, layer: str, clearance: float = 0.25,
 
     fill = region_mask & ~keep & ~cut
 
-    # термобарьеры: кольцо вокруг контакта с лучами
+    
     spokes = np.zeros((ny, nx), dtype=bool)
     for el in conducts:
         if isinstance(el, Track):
@@ -297,14 +297,14 @@ def compute_fill(board: Board, layer: str, clearance: float = 0.25,
         sw = max(cell * 1.2, spoke_width)
         dirs = spoke_dirs
         rad = max(w, h) / 2 + thermal_gap + sw
-        if dirs[0]:   # влево
-            spokes[j0:j1, i0:i1] |= _band(grid, (cx - rad, cy - sw / 2), (cx, cy + sw / 2))
-        if dirs[1]:   # вправо
-            spokes[j0:j1, i0:i1] |= _band(grid, (cx, cy - sw / 2), (cx + rad, cy + sw / 2))
-        if dirs[2]:   # вниз
-            spokes[j0:j1, i0:i1] |= _band(grid, (cx - sw / 2, cy - rad), (cx + sw / 2, cy))
-        if dirs[3]:   # вверх
-            spokes[j0:j1, i0:i1] |= _band(grid, (cx - sw / 2, cy), (cx + sw / 2, cy + rad))
+        if dirs[0]:
+            spokes |= _band(grid, (cx - rad, cy - sw / 2), (cx, cy + sw / 2))
+        if dirs[1]:
+            spokes |= _band(grid, (cx, cy - sw / 2), (cx + rad, cy + sw / 2))
+        if dirs[2]:
+            spokes |= _band(grid, (cx - sw / 2, cy - rad), (cx + sw / 2, cy))
+        if dirs[3]:
+            spokes |= _band(grid, (cx - sw / 2, cy), (cx + sw / 2, cy + rad))
     fill |= spokes & region_mask
 
     rects = mask_to_rects(fill, gx, gy)
@@ -317,9 +317,10 @@ def compute_fill(board: Board, layer: str, clearance: float = 0.25,
     return el_fill
 
 
-def _band(grid, box, cell_box=None) -> np.ndarray:
+def _band(grid, a, b) -> np.ndarray:
     gx, gy = grid
-    x0, y0, x1, y1 = box
+    x0, y0 = a
+    x1, y1 = b
     i0 = max(0, int((x0 - gx[0]) / (gx[1] - gx[0] if len(gx) > 1 else 1)))
     i1 = min(len(gx), int((x1 - gx[0]) / (gx[1] - gx[0] if len(gx) > 1 else 1)) + 1)
     j0 = max(0, int((y0 - gy[0]) / (gy[1] - gy[0] if len(gy) > 1 else 1)))

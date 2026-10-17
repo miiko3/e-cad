@@ -13,14 +13,14 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from .geom import (MIL, arc_points, bbox_grow, bbox_of, bbox_overlap, bbox_union,
                    dist, poly_length, pt_seg_dist, rot_pt, segments_intersect)
 
-# --------------------------------------------------------------- слои
+
 @dataclass(frozen=True)
 class LayerDef:
     key: str
     name: str
     short: str
-    kind: str          # copper | silk | outline
-    top: bool          # отображается «сверху» (не зеркалится)
+    kind: str          
+    top: bool          
     default_color: str
     conductive: bool = False
     maskable: bool = False
@@ -45,7 +45,7 @@ TOP_ONLY = (TOP_KEY, "K1")
 BOTTOM_ONLY = (BOTTOM_KEY, "K2")
 
 
-# --------------------------------------------------------------- элементы
+
 _ids = itertools.count(1)
 
 
@@ -58,7 +58,7 @@ class Element:
     locked: bool = False
     kind: str = "track"
 
-    # --- интерфейс -----------------------------------------------------
+    
     def bbox(self):
         raise NotImplementedError
 
@@ -99,7 +99,7 @@ class Element:
     def outline_points(self) -> List[Tuple[float, float]]:
         return []
 
-    # --- сериализация ---------------------------------------------------
+    
     def to_dict(self) -> dict:
         d = {"id": self.id, "kind": self.kind, "layer": self.layer}
         if self.mask_open:
@@ -118,7 +118,7 @@ class Element:
     def from_dict(d: dict) -> "Element":
         kind = d.get("kind", "track")
         cls = ELEMENT_CLASSES.get(kind, Track)
-        el = cls()                      # все поля со значениями по умолчанию
+        el = cls()                      
         if d.get("id"):
             el.id = d["id"]
         el.layer = d.get("layer", TOP_KEY)
@@ -202,7 +202,7 @@ class Pad(Element):
     y: float = 0.0
     pad_dia: float = 1.8
     hole_dia: float = 0.9
-    shape: str = "circle"      # circle | rect | oval | rounded
+    shape: str = "circle"      
     size: Tuple[float, float] = (1.8, 1.8)
     plated: bool = True
     thermal: bool = False
@@ -290,7 +290,7 @@ class SmdPad(Element):
     y: float = 0.0
     w: float = 1.0
     h: float = 1.5
-    shape: str = "rect"        # rect | roundrect | circle | oval
+    shape: str = "rect"        
     thermal: bool = False
     clearance: float = 0.2
 
@@ -463,9 +463,9 @@ class TextEl(Element):
     text: str = ""
     height: float = 1.6
     thickness: float = 0.2
-    style: int = 0            # 0..8
+    style: int = 0            
     angle: float = 0.0
-    mirror: str = ""          # "" | "X" | "Y"
+    mirror: str = ""          
     auto_num: bool = False
     prefix: str = "R"
 
@@ -623,7 +623,7 @@ class FillEl(Element):
     kind: str = "fill"
     rects: List[List[float]] = field(default_factory=list)
     no_drc: bool = True
-    cell: float = 0.0          # шаг растра, из которого собраны прямоугольники
+    cell: float = 0.0          
 
     def _fields(self):
         return {"rects": self.rects, "no_drc": self.no_drc, "cell": self.cell}
@@ -679,7 +679,7 @@ TYPE_NAMES = {
 }
 
 
-# --------------------------------------------------------------- компонент
+
 @dataclass
 class Component:
     ids: List[str] = field(default_factory=list)
@@ -714,7 +714,7 @@ class Component:
         return c
 
 
-# ------------------------------------------------------- плата / документ
+
 @dataclass
 class Board:
     name: str = "Плата 1"
@@ -843,7 +843,7 @@ class Document:
         return doc
 
 
-# --------------------------------------------------------------- связность
+
 class UnionFind:
     def __init__(self, items: Sequence[str] = ()):
         self.p = {i: i for i in items}

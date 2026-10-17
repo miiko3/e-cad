@@ -12,7 +12,7 @@ from ..core.model import (Board, CircleEl, Element, Pad, PolygonEl, RectEl, SmdP
                            TextEl, TOP_KEY, Track)
 
 
-# ------------------------------------------------------------ хелперы
+
 def silk_rect(w: float, h: float, line: float = 0.2, pin1: bool = True) -> List[Element]:
     """Контур корпуса на слое маркировки + метка вывода №1."""
     els = [RectEl(layer="K1", x0=-w / 2, y0=-h / 2, x1=w / 2, y1=h / 2, width=line)]
@@ -139,12 +139,12 @@ def relay_two_wire(pitch: float = 5.0) -> List[Element]:
             label("K", -1.0, -3.4, 1.5, 0.22, "K")]
 
 
-# ------------------------------------------------------- набор макросов
+
 def default_macros() -> List[Tuple[str, str, List[Element]]]:
     """(группа, имя, элементы) — стартовый набор библиотеки."""
     out: List[Tuple[str, str, List[Element]]] = []
 
-    # ---------------- Резисторы
+    
     for code, bw, bh, pw, ph, pitch in (("0603", 1.6, 0.8, 0.9, 0.95, 1.5),
                                          ("0805", 2.0, 1.25, 1.0, 1.4, 1.9),
                                          ("1206", 3.2, 1.6, 1.2, 1.8, 3.0),
@@ -158,7 +158,7 @@ def default_macros() -> List[Tuple[str, str, List[Element]]]:
     out.append(("Резисторы", "Резистор сети (SOIC-9, 4 резистора)",
                 dual_row(8, 1.27, 5.4, 6.0, 4.0) + [label("RN", -1.4, -3.6, 1.2, 0.18, "RN")]))
 
-    # ---------------- Конденсаторы
+    
     for code, bw, bh, pw, ph, pitch in (("0603", 1.6, 0.8, 0.9, 0.95, 1.5),
                                          ("0805", 2.0, 1.25, 1.0, 1.4, 1.9),
                                          ("1206", 3.2, 1.6, 1.2, 1.8, 3.0)):
@@ -180,7 +180,7 @@ def default_macros() -> List[Tuple[str, str, List[Element]]]:
                 [tht(0, 0, 1.8, 0.9), tht(2.54, 0, 1.8, 0.9), tht(5.08, 0, 1.8, 0.9),
                  *silk_rect(7.2, 6.0), label("C", -1.0, -3.8, 1.4, 0.2, "C")]))
 
-    # ---------------- Диоды и светодиоды
+    
     out.append(("Диоды", "Диод выводной 1N4007 (DO-41)",
                 chip_axial(10.0, 2.7, 1.0) + [silk_line(1.4, -1.9, 1.4, 1.9, 0.25)]))
     out.append(("Диоды", "Диод Шоттки SMD (SOD-123)",
@@ -201,7 +201,7 @@ def default_macros() -> List[Tuple[str, str, List[Element]]]:
                  RectEl(layer="K1", x0=-1.5, y0=-0.6, x1=1.5, y1=0.6, width=0.2),
                  label("D", -1.0, 1.3, 1.0, 0.16, "D")]))
 
-    # ---------------- Транзисторы
+    
     out.append(("Транзисторы", "SOT-23-3",
                 [smd(-0.95, -1.0, 1.0, 0.8), smd(0.95, -1.0, 1.0, 0.8), smd(0, 1.0, 1.0, 0.8),
                  RectEl(layer="K1", x0=-1.6, y0=-1.6, x1=1.6, y1=1.6, width=0.2),
@@ -219,7 +219,7 @@ def default_macros() -> List[Tuple[str, str, List[Element]]]:
                  RectEl(layer="K1", x0=-3.5, y0=-6.5, x1=8.5, y1=4.0, width=0.25),
                  label("Q", -1.0, -7.6, 1.6, 0.22, "Q")]))
 
-    # ---------------- Микросхемы
+    
     for name, n, pitch, span, bw, bh in (
             ("SOIC-8", 8, 1.27, 5.4, 6.0, 4.9),
             ("SOIC-14", 14, 1.27, 5.4, 6.0, 8.9),
@@ -272,7 +272,7 @@ def default_macros() -> List[Tuple[str, str, List[Element]]]:
                 silk_rect(5.0, 5.0, 0.2) + [silk_circle(-1.6, -1.6, 0.3, 0.2),
                                               label("U", -1.2, 3.4, 1.2, 0.2, "U")]))
 
-    # ---------------- Индуктивности
+    
     out.append(("Индуктивности", "Индуктивность SMD 0805",
                 chip_2terminal(1.9, 2.0, 1.25, 1.0, 1.4, "L", "L")))
     out.append(("Индуктивности", "Индуктивность выводная",
@@ -287,7 +287,7 @@ def default_macros() -> List[Tuple[str, str, List[Element]]]:
                  tht(6.0, 3.0, 1.8, 0.9),
                  *silk_rect(8.0, 5.0), label("T", -1.0, 5.6, 1.5, 0.22, "T")]))
 
-    # ---------------- Кварцы, резонаторы, кнопки
+    
     out.append(("Кварцы", "Кварц HC-49/S (4 pads)",
                 [tht(-2.4, -1.4, 1.6, 0.9, square=True), tht(2.4, -1.4, 1.6, 0.9),
                  tht(-2.4, 1.4, 1.6, 0.9), tht(2.4, 1.4, 1.6, 0.9),
@@ -314,7 +314,7 @@ def default_macros() -> List[Tuple[str, str, List[Element]]]:
                  RectEl(layer="K1", x0=-2.4, y0=-1.8, x1=2.4, y1=1.8, width=0.2),
                  label("SW", -1.0, 2.4, 1.1, 0.16, "SW")]))
 
-    # ---------------- Разъёмы
+    
     for n in (2, 3, 4, 5, 6, 8, 10):
         out.append(("Разъёмы", f"Разъём штырьковый {n} контактов", to_header(n)))
     out.append(("Разъёмы", "Разъём USB-A (SMD)",
@@ -335,7 +335,7 @@ def default_macros() -> List[Tuple[str, str, List[Element]]]:
                  silk_circle(2.2, 0, 0.4, 0.2),
                  label("BT", -1.6, 6.0, 1.5, 0.22, "BT")]))
 
-    # ---------------- Прочее
+    
     out.append(("Прочее", "Силовой MOSFET SO-8",
                 dual_row(8, 1.27, 5.4, 5.0, 6.0) +
                 [RectEl(layer="K1", x0=-2.5, y0=-3.0, x1=2.5, y1=-1.6, width=0.2),

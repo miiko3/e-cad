@@ -64,7 +64,7 @@ def _form(*rows) -> QFormLayout:
         if isinstance(label, str):
             f.addRow(label, widget)
         elif widget is None:
-            f.addRow(label)          # виджет (флажок/кнопка) на всю ширину строки
+            f.addRow(label)          
         else:
             f.addRow(label, widget)
     return f
@@ -93,7 +93,7 @@ class BaseDialog(QDialog):
         return bb
 
 
-# ------------------------------------------------------------- диалог текста
+
 class TextDialog(BaseDialog):
     def __init__(self, canvas, parent=None):
         super().__init__(canvas, "Текст на схеме", parent)
@@ -178,12 +178,12 @@ class TextPreview(QWidget):
             p.end()
 
 
-# -------------------------------------------------------------- фигура / массив
+
 class ShapeDialog(BaseDialog):
     def __init__(self, canvas, parent=None):
         super().__init__(canvas, "Фигура / массив", parent, 520)
         self.tabs = QTabWidget()
-        # 1. правильный многоугольник
+        
         p1 = QWidget()
         f1 = QFormLayout(p1)
         self.poly_n = QSpinBox()
@@ -202,7 +202,7 @@ class ShapeDialog(BaseDialog):
         f1.addRow(self.poly_fill)
         self.tabs.addTab(p1, "Правильный многоугольник")
 
-        # 2. спираль
+        
         p2 = QWidget()
         f2 = QFormLayout(p2)
         self.sp_type = QComboBox()
@@ -218,7 +218,7 @@ class ShapeDialog(BaseDialog):
         f2.addRow("Ширина линии, мм:", self.sp_w)
         self.tabs.addTab(p2, "Спираль")
 
-        # 3. матрица
+        
         p3 = QWidget()
         f3 = QFormLayout(p3)
         self.ar_rows = QSpinBox()
@@ -273,7 +273,7 @@ class ShapeDialog(BaseDialog):
                     pts.append((cx + sx * r, cy + sy * r))
             out.append(Track(layer=layer, points=pts, width=self.sp_w.value()))
         else:
-            return []   # массив — отдельная операция
+            return []   
         return out
 
 
@@ -307,7 +307,7 @@ class ArrayDialog(BaseDialog):
         self.astep.setEnabled(radial)
 
 
-# ------------------------------------------------------- мастер площадок
+
 class WizardDialog(BaseDialog):
     def __init__(self, canvas, parent=None):
         super().__init__(canvas, "Мастер площадок (Footprint Wizard)", parent, 520)
@@ -437,7 +437,7 @@ class WizardPreview(QWidget):
             p.end()
 
 
-# ------------------------------------------------------------- экспорт Gerber
+
 class GerberExportDialog(BaseDialog):
     def __init__(self, canvas, parent=None):
         super().__init__(canvas, "Экспорт в формате Gerber RS-274X", parent, 560)
@@ -532,7 +532,7 @@ class GerberExportDialog(BaseDialog):
             QMessageBox.warning(self, "Ошибка экспорта", str(e))
 
 
-# ------------------------------------------------------------- сверловка
+
 class DrillDialog(BaseDialog):
     def __init__(self, canvas, parent=None):
         super().__init__(canvas, "Данные отверстий (Excellon)", parent, 520)
@@ -613,7 +613,7 @@ class DrillDialog(BaseDialog):
         self.canvas.statusMessage.emit(f"Сверловка сохранена: {fn}")
 
 
-# ------------------------------------------------------------------- HPGL
+
 class HpglDialog(BaseDialog):
     def __init__(self, canvas, parent=None):
         super().__init__(canvas, "Данные фрезерования (HPGL, *.plt)", parent, 540)
@@ -717,7 +717,7 @@ class HpglDialog(BaseDialog):
             f.write("\n\n" + text)
 
 
-# ------------------------------------------------------------------ печать
+
 class PrintDialog(BaseDialog):
     def __init__(self, canvas, parent=None):
         super().__init__(canvas, "Печать (реальный размер 1:1)", parent, 620)
@@ -957,7 +957,7 @@ class PrintPreview(QWidget):
         p.end()
 
 
-# ------------------------------------------------------ экспорт изображений
+
 class ImageExportDialog(BaseDialog):
     def __init__(self, canvas, parent=None):
         super().__init__(canvas, "Экспорт в изображение", parent, 460)
@@ -1017,7 +1017,7 @@ class ImageExportDialog(BaseDialog):
         self.canvas.statusMessage.emit(f"Изображение сохранено: {path}")
 
 
-# -------------------------------------------------------------- Pick+Place
+
 class PnpDialog(BaseDialog):
     def __init__(self, canvas, parent=None):
         super().__init__(canvas, "Данные Pick+Place / спецификация", parent, 560)
@@ -1084,7 +1084,7 @@ class PnpDialog(BaseDialog):
         self.canvas.statusMessage.emit(f"Pick+Place сохранён: {path}")
 
 
-# ------------------------------------------------------------ компонент
+
 class ComponentDialog(BaseDialog):
     def __init__(self, canvas, comp: Component, parent=None):
         super().__init__(canvas, "Свойства компонента", parent)
@@ -1120,13 +1120,13 @@ class ComponentDialog(BaseDialog):
         c.rotation = self.rot.value()
 
 
-# ------------------------------------------------------------ настройки
+
 class OptionsDialog(BaseDialog):
     def __init__(self, canvas, parent=None):
         super().__init__(canvas, "Общие настройки (Опции)", parent, 620)
         s = canvas.settings
         self.tabs = QTabWidget()
-        # основные
+        
         t1 = QWidget()
         f1 = QFormLayout(t1)
         self.units = QComboBox()
@@ -1157,7 +1157,7 @@ class OptionsDialog(BaseDialog):
         f1.addRow(self.origin)
         f1.addRow("Автосохранение, мин (0 — выкл):", self.autosave)
         self.tabs.addTab(t1, "Основные")
-        # цвета
+        
         t2 = QWidget()
         g = QGridLayout(t2)
         self.color_buttons = {}
@@ -1169,7 +1169,7 @@ class OptionsDialog(BaseDialog):
         self.v.addWidget(self.tabs)
         t2.setLayout(g)
         self.tabs.addTab(t2, "Цвета слоёв")
-        # металлизация
+        
         t3 = QWidget()
         f3 = QFormLayout(t3)
         self.f_clr = _spin(3, 0, 10, 0.05, s["clearance"])
@@ -1201,7 +1201,7 @@ class OptionsDialog(BaseDialog):
         f3.addRow(self.f_through)
         f3.addRow(self.f_auto)
         self.tabs.addTab(t3, "Металлизация")
-        # клавиши
+        
         t4 = QWidget()
         f4 = QFormLayout(t4)
         self.key_buttons = {}
@@ -1211,7 +1211,7 @@ class OptionsDialog(BaseDialog):
             self.key_buttons[key] = b
             f4.addRow(name, b)
         self.tabs.addTab(t4, "Клавиши")
-        # Imax
+        
         t5 = QWidget()
         f5 = QFormLayout(t5)
         self.imax_cu = _spin(1, 10, 200, 5, s["imax_cu"])

@@ -35,7 +35,7 @@ class GerberImportError(Exception):
 
 
 def _parse_coord(tok: str, fmt_dec: int, unit: str) -> float:
-    """Р Р°Р·Р±РѕСЂ РєРѕРѕСЂРґРёРЅР°С‚С‹ СЃ С„РёРєСЃРёСЂРѕРІР°РЅРЅС‹Рј С„РѕСЂРјР°С‚РѕРј (X46 в†’ 4 С†РµР»С‹С…, 6 РґСЂРѕР±РЅС‹С…)."""
+    """Разбор координаты с фиксированным форматом (X46 → 4 целых, 6 дробных)."""
     tok = tok.strip()
     if not tok:
         return 0.0
@@ -56,7 +56,7 @@ _MO_RE = re.compile(r"%MO(MM|IN)\*%")
 
 
 def import_gerber(text: str, layer: str = TOP_KEY) -> List[Element]:
-    """Р Р°Р·РѕР±СЂР°С‚СЊ Gerber RS-274X РІ СЌР»РµРјРµРЅС‚С‹ e-cad (СѓРїСЂРѕС‰С‘РЅРЅРѕ, Р±РµР· G36/G37)."""
+    """Разобрать Gerber RS-274X в элементы e-cad (упрощённо, без G36/G37)."""
     lines = text.splitlines()
     unit = "mm"
     fmt_int, fmt_dec = 4, 6
@@ -135,7 +135,7 @@ def import_gerber(text: str, layer: str = TOP_KEY) -> List[Element]:
             continue
         if line.startswith("G54") or line.startswith("G55") or line.startswith("G70") or line.startswith("G71"):
             continue
-        # D-РєРѕРґС‹
+        
         for token in re.findall(r"D(\d+)", line):
             code = int(token)
             if code >= 10:
@@ -184,10 +184,10 @@ def _num_simple(tok: str, unit: str, fmt: Tuple[int, int]) -> float:
     return _parse_coord(tok, fmt[1], unit)
 
 
-# ------------------------------------------------------------------ Excellon
+
 def import_excellon(text: str, unit_hint: str = "", side: str = "top",
                     plate: Optional[Board] = None, auto_vias: bool = False) -> List[Pad]:
-    """Р Р°Р·РѕР±СЂР°С‚СЊ С„Р°Р№Р» СЃРІРµСЂР»РѕРІРєРё Excellon в†’ РєРѕРЅС‚Р°РєС‚С‹-РїРµСЂРµС…РѕРґРЅС‹Рµ РѕС‚РІРµСЂСЃС‚РёСЏ."""
+    """Разобрать файл сверловки Excellon → контакты-переходные отверстия."""
     lines = text.splitlines()
     unit = unit_hint
     fmt = (3, 3)
@@ -243,16 +243,16 @@ def import_excellon(text: str, unit_hint: str = "", side: str = "top",
             out.append(Pad(layer=TOP_KEY if side == "top" else "M2", x=x, y=-y,
                            pad_dia=max(dia + 0.6, 1.0), hole_dia=dia, plated=True))
     if unit is None:
-        raise GerberImportError("РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ РµРґРёРЅРёС†С‹ С„Р°Р№Р»Р° СЃРІРµСЂР»РѕРІРєРё")
+        raise GerberImportError("Не удалось определить единицы файла сверловки")
     return out
 
 
-# ------------------------------------------------------------------ С€Р°Р±Р»РѕРЅ
+
 def load_template_image(path: str, dpi: Optional[int] = None):
     from PySide6.QtGui import QImage
     img = QImage(path)
     if img.isNull():
-        raise GerberImportError("РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РёР·РѕР±СЂР°Р¶РµРЅРёРµ")
+        raise GerberImportError("Не удалось загрузить изображение")
     return img
 
 

@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel
 from .helpwindow import APP, AUTHOR, LINKS, VERSION
 from .theme import icon
 
-# ссылки автора: соцсети и пожертвования
+
 AUTHOR_LINKS = {
     "ВКонтакте": LINKS["ВКонтакте"],
     "ЮMoney (поддержка)": LINKS["ЮMoney"],
@@ -168,7 +168,7 @@ class AboutDialog(QDialog):
             iv.addWidget(lb)
         v.addWidget(info)
 
-        # прокручиваемая область с блоком «Актор»
+        
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -177,7 +177,7 @@ class AboutDialog(QDialog):
         self.scroll = scroll
         v.addWidget(scroll, 1)
 
-        # две кнопки, как просил автор: Автор / Репозитории
+        
         row = QHBoxLayout()
         b_author = QPushButton("Автор · ссылки")
         b_author.setObjectName("Primary")

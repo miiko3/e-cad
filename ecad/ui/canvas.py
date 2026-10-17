@@ -46,14 +46,14 @@ TOOLS = [
 ]
 
 DEFAULT_SETTINGS: Dict = {
-    "units": "mm",                 # mm | mil
+    "units": "mm",                 
     "grid_step": 0.5,
     "grid_steps": [0.1, 0.25, 0.5, 1.0, 1.27, 2.54, 5.0, 10.0, 25.4],
     "grid_visible": True,
     "grid_thick": 5,
     "snap": True,
     "autograb": True,
-    "rubber": 1,                   # 0 выкл, 1 слабый, 2 сильный
+    "rubber": 1,                   
     "metallization": False,
     "track_width": 0.4,
     "track_widths": [0.2, 0.3, 0.4, 0.6, 0.8, 1.0],
@@ -111,7 +111,7 @@ class Canvas(QWidget):
     selectionChanged = Signal(int)
     documentChanged = Signal()
     statusMessage = Signal(str)
-    requestDialog = Signal(str)        # 'text' | 'shape' | 'array' | 'component'
+    requestDialog = Signal(str)        
     viewChanged = Signal()
 
     def __init__(self, parent=None):
@@ -124,14 +124,14 @@ class Canvas(QWidget):
         self.doc: Document = Document()
         self.settings: Dict = copy.deepcopy(DEFAULT_SETTINGS)
         self.tokens: Dict = {}
-        self.field_origin = QPoint(RULER, RULER)   # верхняя/левая линейки
+        self.field_origin = QPoint(RULER, RULER)   
 
-        # вид
-        self.scale = 6.0                 # px на мм
-        self.offset = QPointF(0.0, 0.0)  # мм в левом верхнем углу поля
+        
+        self.scale = 6.0                 
+        self.offset = QPointF(0.0, 0.0)  
         self.prev_view: List[Tuple[float, QPointF]] = []
 
-        # состояние
+        
         self.tool = "cursor"
         self.active_layer = TOP_KEY
         self.selection: List[str] = []
@@ -174,7 +174,7 @@ class Canvas(QWidget):
         self.blink_timer.timeout.connect(self._toggle_blink)
         self.blink_timer.start(420)
 
-    # ------------------------------------------------------------ документ
+    
     def set_document(self, doc: Document):
         self.doc = doc
         self.selection = []
@@ -196,7 +196,7 @@ class Canvas(QWidget):
         self.doc.dirty = True
         self.documentChanged.emit()
 
-    # ------------------------------------------------------- преобразование
+    
     def field_rect(self) -> QRect:
         o = self.field_origin
         return QRect(o.x(), o.y(), max(1, self.width() - o.x()),
@@ -289,7 +289,7 @@ class Canvas(QWidget):
                             best, best_d = pts[i], d2
         return best
 
-    # -------------------------------------------------------------- элементы
+    
     def find_element(self, p, tol=None, layer_filter=True) -> Optional[Element]:
         b = self.board()
         tol = self.tol_mm() if tol is None else tol
@@ -350,7 +350,7 @@ class Canvas(QWidget):
                     return el
         return None
 
-    # ------------------------------------------------------------ масштаб
+    
     def zoom_at(self, factor: float, anchor: Optional[QPointF] = None):
         f = self.field_rect()
         anchor = anchor if anchor is not None else QPointF(f.center())
@@ -410,7 +410,7 @@ class Canvas(QWidget):
         self.invalidate(structural=True)
         self.viewChanged.emit()
 
-    # ------------------------------------------------------------ рисование
+    
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -514,7 +514,7 @@ class Canvas(QWidget):
         p.drawImage(target, img)
         p.setOpacity(1.0)
 
-    # --- элементы ----------------------------------------------------
+    
     @staticmethod
     def _mix(c: QColor, other: QColor, t: float) -> QColor:
         """Смешать цвет c с other: t=0 — c, t=1 — other."""
@@ -544,7 +544,7 @@ class Canvas(QWidget):
             items = [el for el in items if self._el_on_side(el, side)]
         else:
             items = [el for el in items if self._visible(el.layer) or el.layer == self.active_layer]
-        # порядок: нижние слои → верхние → контур; внутри слоя — заливка, дорожки, контакты, текст
+        
         items.sort(key=draw_sort_key)
         for el in items:
             mir = self.layer_mirror(el.layer)
@@ -554,18 +554,18 @@ class Canvas(QWidget):
             alpha = 255
             bg = QColor(self.tokens.get("canvas", "#0a0d10"))
             if not photo and el.kind == "fill":
-                # заливка — тот же металл, но приглушённый, чтобы проводники и КП читались
+                
                 col = self._mix(col, bg, 0.45 if el.layer in ("M1", "V1") else 0.6)
                 if self.settings["fill_dim"]:
                     alpha = 120
                 if el.layer in ("M2", "V2", "K2") and not self.settings["fill_through"]:
                     alpha = min(alpha, 120)
             elif not photo and el.layer in ("M2", "K2", "V2"):
-                # «прозрачная плата»: нижние слои видны сквозь верхние приглушённо
+                
                 alpha = 255 if self.settings["fill_through"] else 120
             col.setAlpha(alpha)
             if mir:
-                # отражаем слой относительно вертикальной оси платы (вид сверху)
+                
                 b = self.board()
                 x0, _y0, x1, _y1 = b.outline_rect()
                 axis = self.to_screen(((x0 + x1) / 2, 0)).x()
@@ -679,7 +679,7 @@ class Canvas(QWidget):
         c = self.to_screen((el.x, el.y), mir)
         sw = max(0.8, w * self.scale)
         sh = max(0.8, h * self.scale)
-        # отверстие
+        
         hole = QColor(t.get("hole", "#0a0d10"))
         if self.settings["hole_color"] == "white":
             hole = QColor("#ffffff")
@@ -698,7 +698,7 @@ class Canvas(QWidget):
         else:
             p.drawRoundedRect(rect, min(sw, sh) * (0.25 if el.shape == "rounded" else 0.0),
                               min(sw, sh) * (0.25 if el.shape == "rounded" else 0.0))
-        # металлизация: отверстие рисуем другим цветом
+        
         if el.hole_dia > 0:
             hr = el.hole_dia * self.scale / 2
             p.setBrush(QBrush(hole))
@@ -766,7 +766,7 @@ class Canvas(QWidget):
             p.drawPath(path)
         p.restore()
 
-    # --- служебные слои ------------------------------------------------
+    
     def _draw_connections(self, p: QPainter):
         b = self.board()
         t = self.tokens or {}
@@ -839,7 +839,7 @@ class Canvas(QWidget):
                 continue
             p.setPen(QPen(col, 1.4, Qt.PenStyle.DashLine))
             p.drawRect(rect)
-            # узлы
+            
             if el.kind in ("track", "poly"):
                 for pt in el.outline_points():
                     sp = self.to_screen(pt, mir)
@@ -892,7 +892,7 @@ class Canvas(QWidget):
             mir = self.layer_mirror(el.layer)
             self._draw_element(p, el, col, mir)
 
-    # --- линейки и курсор --------------------------------------------
+    
     def _draw_rulers(self, p: QPainter):
         t = self.tokens or {}
         field = self.field_rect()
@@ -907,7 +907,7 @@ class Canvas(QWidget):
         f = QFont("Segoe UI")
         f.setPixelSize(9)
         p.setFont(f)
-        # горизонтальная
+        
         x0 = self.offset.x()
         x1 = x0 + field.width() / self.scale
         v = math.ceil(x0 / step) * step
@@ -948,7 +948,7 @@ class Canvas(QWidget):
             cy = self.to_screen((0, self.cursor_mm[1]))
             p.drawLine(QPointF(cx.x(), 0), QPointF(cx.x(), RULER))
             p.drawLine(QPointF(0, cy.y()), QPointF(RULER, cy.y()))
-        # перекрестие углов: единицы
+        
         p.setPen(QPen(QColor(t.get("outline", "#8c9199")), 1))
         p.drawLine(0, RULER - 1, RULER - 1, RULER - 1)
 
@@ -987,7 +987,7 @@ class Canvas(QWidget):
             self._blink = not self._blink
             self.update()
 
-    # ------------------------------------------------------------- ввод
+    
     _mods_ctrl = False
     _mods_shift = False
     _mouse_in = None
@@ -1014,7 +1014,7 @@ class Canvas(QWidget):
                 self.statusMessage.emit("Размещение макроса отменено (ПКМ)")
                 self.update()
                 return
-            # ПКМ завершает начатое (дорожка/полигон), затем сбрасывает инструмент
+            
             if self.tool == "track" and len(self.temp_points) >= 2:
                 self.finish_track()
                 return
@@ -1123,7 +1123,7 @@ class Canvas(QWidget):
                               self.offset.y() - dy / self.scale)
         self.update()
 
-    # --------------------------------------------------------- инструменты
+    
     def set_tool(self, name: str):
         if name not in dict((t[0], t) for t in TOOLS):
             return
@@ -1148,10 +1148,10 @@ class Canvas(QWidget):
             return Qt.CursorShape.CrossCursor
         return Qt.CursorShape.CrossCursor
 
-    # --- курсор / выделение
+    
     def t_cursor_press(self, ev, mm):
         if self.placed_macro is not None:
-            # режим размещения макроса из библиотеки: ЛКМ ставит его под курсором
+            
             self.place_macro_at(mm)
             return
         el = self.find_element(mm)
@@ -1175,7 +1175,7 @@ class Canvas(QWidget):
         b = self.board()
         self.drag_start = mm
         ids = set(self.selection)
-        # Alt — выделить элемент внутри группы / компонента
+        
         comp = None
         for c in b.components:
             if any(i in ids for i in c.ids):
@@ -1185,7 +1185,7 @@ class Canvas(QWidget):
             ids = set(comp.ids) | ids
         self.drag_elems = [(b.elements[i], _el_center(b.elements[i]))
                            for i in ids if i in b.elements and not b.elements[i].locked]
-        # резиновые дорожки: тянем связанные
+        
         if self.settings["rubber"] and ids:
             extra = self._rubber_ids(ids)
             for i in extra:
@@ -1247,7 +1247,7 @@ class Canvas(QWidget):
         self._last_dx = self._last_dy = 0.0
         self.update()
 
-    # --- масштаб
+    
     def t_zoom_press(self, ev, mm):
         self.drag_start = mm
         self.marquee = (mm, mm)
@@ -1275,7 +1275,7 @@ class Canvas(QWidget):
         self.remember_view()
         self.zoom_at(1.3 if positive else 1 / 1.3)
 
-    # --- дорожка
+    
     def t_track_press(self, ev, mm):
         if not self.temp_points:
             self.push_undo()
@@ -1292,12 +1292,12 @@ class Canvas(QWidget):
         self.update()
 
     def r_track_release(self, ev, mm):
-        # перетаскивание: была только стартовая точка — добавляем конечную и завершаем
+        
         if len(self.temp_points) == 1 and dist(mm, self.temp_points[0]) > 1e-4:
             self.temp_points.append(mm)
             self.finish_track()
             return
-        # иначе узлы уже добавлены нажатиями (режим «клик-клик»)
+        
         self.update()
 
     def finish_track(self, negative: bool = False):
@@ -1309,7 +1309,7 @@ class Canvas(QWidget):
         self.preview.clear()
         self.update()
 
-    # --- контакты
+    
     def t_pad_press(self, ev, mm):
         self.push_undo()
         p = Pad(layer=self.active_layer, x=mm[0], y=mm[1],
@@ -1343,14 +1343,14 @@ class Canvas(QWidget):
         self.invalidate()
         self.statusMessage.emit("Металлизация: " + ("вкл" if pads[0].plated else "выкл"))
 
-    # --- текст и фигура вызывают диалоги
+    
     def t_text_press(self, ev, mm):
         self.requestDialog.emit("text")
 
     def t_shape_press(self, ev, mm):
         self.requestDialog.emit("shape")
 
-    # --- круг/дуга
+    
     def t_circle_press(self, ev, mm):
         self.push_undo()
         self.temp_points = [mm]
@@ -1375,7 +1375,7 @@ class Canvas(QWidget):
         self.temp_points = []
         self.preview.clear()
 
-    # --- полигон
+    
     def t_poly_press(self, ev, mm):
         if not self.temp_points:
             self.push_undo()
@@ -1393,7 +1393,7 @@ class Canvas(QWidget):
         self.update()
 
     def r_poly_release(self, ev, mm):
-        # перетаскивание задаёт вторую вершину, дальше polygon строится кликами
+        
         if len(self.temp_points) == 1 and dist(mm, self.temp_points[0]) > 1e-4:
             self.temp_points.append(mm)
             self.update()
@@ -1407,7 +1407,7 @@ class Canvas(QWidget):
         self.preview.clear()
         self.update()
 
-    # --- прямоугольник
+    
     def t_rect_press(self, ev, mm):
         self.push_undo()
         self.temp_points = [mm]
@@ -1430,7 +1430,7 @@ class Canvas(QWidget):
         self.temp_points = []
         self.preview.clear()
 
-    # --- маска
+    
     def t_mask_press(self, ev, mm):
         el = self.element_at_all_layers(mm, max(self.tol_mm(), 0.3))
         if el is None or el.kind in ("fill", "conn"):
@@ -1456,7 +1456,7 @@ class Canvas(QWidget):
         self.touch()
         self.invalidate()
 
-    # --- линии связи
+    
     def t_conn_press(self, ev, mm):
         pad = self.pad_at(mm, max(self.tol_mm(), 0.4))
         if pad is None:
@@ -1483,7 +1483,7 @@ class Canvas(QWidget):
             self._remove(c.id)
             self.invalidate()
 
-    # --- автотрасса
+    
     def t_route_press(self, ev, mm):
         pad = self.pad_at(mm, max(self.tol_mm(), 0.6))
         if pad is None:
@@ -1542,7 +1542,7 @@ class Canvas(QWidget):
         self.invalidate()
         self.statusMessage.emit(f"Автотрасса: проложено {made} связей")
 
-    # --- контроль (щуп)
+    
     def t_probe_press(self, ev, mm):
         el = self.element_at_all_layers(mm, max(self.tol_mm(), 0.5))
         if el is None:
@@ -1563,7 +1563,7 @@ class Canvas(QWidget):
         self.statusMessage.emit(label)
         self.update()
 
-    # --- измеритель
+    
     def t_measure_press(self, ev, mm):
         self.measure_from = mm
         self.measure_to = mm
@@ -1575,7 +1575,7 @@ class Canvas(QWidget):
     def r_measure(self, ev, mm):
         pass
 
-    # ------------------------------------------------------- добавление
+    
     def _add(self, el: Element, select: bool = False):
         b = self.board()
         if not el.id:
@@ -1617,7 +1617,7 @@ class Canvas(QWidget):
                 b.fill_layers[lk] = False
         self.invalidate(structural=False)
 
-    # ------------------------------------------------------------ выделение
+    
     def select(self, ids: Sequence[str]):
         self.selection = [i for i in ids if i in self.board().elements]
         self.selectionChanged.emit(len(self.selection))
@@ -1658,7 +1658,7 @@ class Canvas(QWidget):
         box = bbox_union(boxes, None)
         return ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
 
-    # -------------------------------------------------------- преобразования
+    
     def rotate_selected(self, deg: float):
         c = self.selection_center()
         if c is None:
@@ -1799,7 +1799,7 @@ class Canvas(QWidget):
         self.on_geometry_changed()
         self.invalidate()
 
-    # ------------------------------------------------------- буфер обмена
+    
     def copy_selected(self) -> List[Element]:
         b = self.board()
         els = [b.elements[i].copy() for i in self.selection if i in b.elements]
@@ -1858,7 +1858,7 @@ class Canvas(QWidget):
         self.on_geometry_changed()
         self.invalidate()
 
-    # --------------------------------------------------------- undo/redo
+    
     def snapshot(self) -> dict:
         b = self.board()
         return {"elements": copy.deepcopy(b.elements),
@@ -1899,7 +1899,7 @@ class Canvas(QWidget):
         self.touch()
         return True
 
-    # ------------------------------------------------------------- слои
+    
     def set_layer(self, layer: str):
         if layer in LAYER_BY_KEY:
             self.active_layer = layer
@@ -1919,7 +1919,7 @@ class Canvas(QWidget):
             self.active_layer = mapping.get(cur, cur)
         self.update()
 
-    # ------------------------------------------------------- авто-земля
+    
     def apply_fill(self, layers: Optional[Sequence[str]] = None):
         b = self.board()
         targets = list(layers or [lk for lk in COPPER_KEYS
@@ -1968,7 +1968,7 @@ class Canvas(QWidget):
             self.clear_fills()
         self.viewChanged.emit()
 
-    # ------------------------------------------------------- DRC / сеть
+    
     def run_drc(self, window: bool = False) -> List:
         box = None
         if window:
@@ -1984,7 +1984,7 @@ class Canvas(QWidget):
         if err.box:
             self._zoom_to_box(err.box, pad=14)
 
-    # ------------------------------------------------------- макросы
+    
     def start_macro_place(self, macro: Macro):
         self.placed_macro = macro
         self._placed_name = macro.name
@@ -1999,17 +1999,17 @@ class Canvas(QWidget):
         els = self.placed_macro.instance(pos[0], pos[1], self.macro_rot, self.macro_bottom)
         ids = []
         for el in els:
-            el.id = _next_id()          # копия макроса получает собственный идентификатор
+            el.id = _next_id()          
             self.board().elements[el.id] = el
             ids.append(el.id)
         name = self._placed_name or self.placed_macro.name if self.placed_macro else self._placed_name
-        self.placed_macro = None          # размещение одноразовое
+        self.placed_macro = None          
         self.select(ids)
         self.touch()
         self.invalidate()
         self.statusMessage.emit(f"Макрос «{name}» размещён под курсором")
 
-    # --------------------------------------------------------- клавиши
+    
     def keyPressEvent(self, ev):
         key = ev.key()
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
@@ -2038,7 +2038,7 @@ class Canvas(QWidget):
         super().keyPressEvent(ev)
 
 
-# ------------------------------------------------------------------ утилиты
+
 _ids = [0]
 
 
