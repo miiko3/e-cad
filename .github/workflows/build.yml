@@ -8,6 +8,12 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: '1'
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - uses: actions/checkout@v4
 
@@ -22,18 +28,11 @@ jobs:
 
       - name: Проверка импорта и ядра
         run: |
-          python -c "import sys; sys.path.insert(0,'.'); \
-            from ecad.core import geom, model, fill, drc, exporters, importers, tools_lib, footprints; \
-            from ecad.ui import theme, canvas, panels, dialogs, dialogs_board, render, helpwindow, about, main_window; \
-            print('модули e-cad импортируются')"
+          python -c "import sys; sys.path.insert(0,'.'); from ecad.core import geom, model, fill, drc, exporters, importers, tools_lib, footprints; from ecad.ui import theme, canvas, panels, dialogs, dialogs_board, render, helpwindow, about, main_window; print('ecad modules ok')"
 
       - name: Сборка исполняемого файла
         run: |
-          pyinstaller --noconfirm --clean --windowed --name e-cad ^
-            --add-data "assets;assets" ^
-            --add-data "examples;examples" ^
-            --hidden-import PySide6.QtPrintSupport ^
-            main.py
+          pyinstaller --noconfirm --clean --windowed --name e-cad --add-data "assets;assets" --add-data "examples;examples" main.py
 
       - name: Архив сборки
         uses: actions/upload-artifact@v4
