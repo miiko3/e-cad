@@ -178,6 +178,19 @@ QToolButton#LogoButton {{
 QToolButton#LogoButton:hover {{
     background-color: {t['surface_container_high']};
 }}
+QToolButton#AboutButton {{
+    color: {t['on_surface']};
+    font-size: 12px;
+    padding: 6px 12px;
+    border: 1px solid {t['outline']};
+    border-radius: 18px;
+    background: transparent;
+}}
+QToolButton#AboutButton:hover {{
+    background-color: {t['surface_container_high']};
+    border-color: {t['primary']};
+    color: {t['primary']};
+}}
 
 /* --- меню --- */
 QMenuBar {{

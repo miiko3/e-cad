@@ -88,9 +88,13 @@ class Macro:
 
 
 class Library:
-    """Файловая библиотека макросов (папка с .json)."""
+    """Файловая библиотека макросов: папка с .ecadm/.json и .kicad_mod.
+
+    Поддерживает вложенные папки: имя папки становится группой.
+    """
 
     EXT = ".ecadm"
+    EXTRA_EXT = (".json", ".kicad_mod", ".kicad_mod.txt")
 
     def __init__(self, folder: str):
         self.folder = folder
@@ -101,18 +105,53 @@ class Library:
         if not os.path.isdir(self.folder):
             os.makedirs(self.folder, exist_ok=True)
             return self.macros
-        for fn in sorted(os.listdir(self.folder)):
-            if not fn.lower().endswith(self.EXT):
-                continue
-            full = os.path.join(self.folder, fn)
-            try:
-                with open(full, "r", encoding="utf-8") as f:
-                    m = Macro.from_dict(json.load(f))
-                m.path = full
+        for path, group in self._iter_files(self.folder, ""):
+            m = self._load(path, group)
+            if m is not None:
                 self.macros.append(m)
-            except Exception:
-                continue
         return self.macros
+
+    def _iter_files(self, root: str, prefix: str):
+        try:
+            entries = sorted(os.listdir(root))
+        except OSError:
+            return
+        for fn in entries:
+            full = os.path.join(root, fn)
+            if os.path.isdir(full):
+                sub = f"{prefix}/{fn}" if prefix else fn
+                yield from self._iter_files(full, sub)
+                continue
+            if not fn.lower().endswith((self.EXT,) + self.EXTRA_EXT):
+                continue
+            group = prefix or "Общие"
+            yield full, group
+
+    def _load(self, path: str, group: str) -> Optional[Macro]:
+        try:
+            if path.lower().endswith(".kicad_mod") or path.lower().endswith(".kicad_mod.txt"):
+                m = footprint_from_kicad(path, group)
+            else:
+                with open(path, "r", encoding="utf-8") as f:
+                    m = Macro.from_dict(json.load(f))
+            if not m.elements:
+                return None
+            m.path = path
+            m.name = m.name or os.path.splitext(os.path.basename(path))[0]
+            if not m.group or m.group == "Общие":
+                m.group = group
+            m.modified = os.path.getmtime(path)
+            return m
+        except Exception:
+            return None
+
+    def folders(self) -> List[str]:
+        """Все вложенные папки библиотеки (для наблюдения за изменениями)."""
+        out = [self.folder]
+        for root, dirs, _files in os.walk(self.folder):
+            for d in dirs:
+                out.append(os.path.join(root, d))
+        return out
 
     def groups(self) -> List[str]:
         return sorted({m.group for m in self.macros})
@@ -171,6 +210,132 @@ def _safe_name(*parts: str) -> str:
     out = "_".join(parts)
     bad = '\\/:*?"<>|'
     return "".join(c for c in out if c not in bad).strip() or "macro"
+
+
+def _sexp(text: str):
+    """Разбор s-выражений KiCad в список токенов вида ('atom', 'str') и списки."""
+    tokens = []
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch.isspace():
+            i += 1
+        elif ch in "()":
+            tokens.append(ch)
+            i += 1
+        elif ch == '"':
+            i += 1
+            buf = []
+            while i < n and text[i] != '"':
+                if text[i] == "\\" and i + 1 < n:
+                    buf.append(text[i + 1])
+                    i += 2
+                else:
+                    buf.append(text[i])
+                    i += 1
+            i += 1
+            tokens.append(("str", "".join(buf)))
+        else:
+            j = i
+            while j < n and not text[j].isspace() and text[j] not in "()":
+                j += 1
+            tokens.append(("atom", text[i:j]))
+            i = j
+    pos = [0]
+
+    def parse():
+        out = []
+        while pos[0] < len(tokens):
+            tok = tokens[pos[0]]
+            pos[0] += 1
+            if tok == "(":
+                out.append(parse())
+            elif tok == ")":
+                return out
+            else:
+                out.append(tok)
+        return out
+
+    tree = parse()
+    if isinstance(tree, list) and tree and isinstance(tree[0], list):
+        return tree[0]
+    return []
+
+
+def _walk(node, kind: str):
+    for item in (node if isinstance(node, list) else []):
+        if isinstance(item, list) and item and isinstance(item[0], tuple) and item[0][1] == kind:
+            yield item
+
+
+def _num(v, default: float = 0.0) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def footprint_from_kicad(path: str, group: str = "KiCad") -> Macro:
+    """Читать посадочное место KiCad (*.kicad_mod) как макрос e-cad."""
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        text = f.read()
+    root = _sexp(text)
+    name = os.path.splitext(os.path.basename(path))[0]
+    if isinstance(root, list) and root and isinstance(root[0], tuple) \
+            and root[0][1] == "footprint":
+        nm = next((t[1] for t in root[1:2] if isinstance(t, tuple) and t[0] == "str"), "")
+        name = nm or name
+    m = Macro(name=name, group=group)
+    for pad in _walk(root, "pad"):
+        num = next((t[1] for t in pad[1:] if isinstance(t, tuple) and t[0] == "str"), "")
+        ptype = next((t[1] for t in pad[1:] if isinstance(t, tuple) and t[0] == "atom"), "smd")
+        at = next(_walk(pad, "at"), None)
+        size = next(_walk(pad, "size"), None)
+        drill = next(_walk(pad, "drill"), None)
+        shape = next((t[1] for t in pad[1:] if isinstance(t, tuple)
+                      and t[0] == "atom" and t[1] in ("circle", "rect", "oval", "roundrect")),
+                     "rect")
+        if at is None or size is None:
+            continue
+        vals = [t[1] for t in at[1:] if isinstance(t, tuple)]
+        x, y = _num(vals[0] if vals else 0), _num(vals[1] if len(vals) > 1 else 0)
+        sw, sh = _num(size[1][1] if len(size) > 1 else 0), _num(size[2][1] if len(size) > 2 else 0)
+        if ptype in ("smd", "smd_custom"):
+            m.elements.append(SmdPad(layer=TOP_KEY, x=x, y=y, w=sw, h=sh,
+                                     shape="roundrect" if shape == "roundrect" else "rect",
+                                     mask_open=True))
+        else:
+            hole = 0.0
+            if drill is not None:
+                dv = [t[1] for t in drill[1:] if isinstance(t, tuple)]
+                hole = _num(dv[0] if dv else 0)
+                if len(dv) > 1:
+                    hole = min(_num(dv[0]), _num(dv[1]))
+            size_map = {"circle": "circle", "oval": "oval", "rect": "rect"}
+            m.elements.append(Pad(layer=TOP_KEY, x=x, y=y, pad_dia=max(sw, sh),
+                                  hole_dia=hole or max(sw, sh) * 0.55,
+                                  shape=size_map.get(shape, "circle"),
+                                  size=(sw, sh), mask_open=True, plated=True))
+    for line in _walk(root, "fp_line"):
+        st, en = next(_walk(line, "start"), None), next(_walk(line, "end"), None)
+        if st is None or en is None:
+            continue
+        sv = [t[1] for t in st[1:] if isinstance(t, tuple)]
+        ev = [t[1] for t in en[1:] if isinstance(t, tuple)]
+        m.elements.append(Track(layer="K1", points=[(_num(sv[0]), _num(sv[1])),
+                                                    (_num(ev[0]), _num(ev[1]))],
+                                width=0.15))
+    for circ in _walk(root, "fp_circle"):
+        c, e = next(_walk(circ, "center"), None), next(_walk(circ, "end"), None)
+        if c is None or e is None:
+            continue
+        cv = [t[1] for t in c[1:] if isinstance(t, tuple)]
+        ev = [t[1] for t in e[1:] if isinstance(t, tuple)]
+        m.elements.append(CircleEl(layer="K1", cx=_num(cv[0]), cy=_num(cv[1]),
+                                   r=abs(_num(ev[0]) - _num(cv[0])), width=0.15))
+    if not m.elements:
+        raise ValueError("в файле нет посадочных мест")
+    return m
 
 
 
@@ -263,42 +428,102 @@ class RouteParams:
 
 def autotrace(board: Board, conn: Connection, params: RouteParams,
               forbidden: Optional[List[Element]] = None) -> Optional[Track]:
-    """Point-to-point автотрасса для одной связи (Л- и Z-образные варианты)."""
+    """Point-to-point автотрасса: Л-, Z- и обходные маршруты с одним изгибом."""
     ea, eb = board.elements.get(conn.a), board.elements.get(conn.b)
     if ea is None or eb is None:
         return None
     a, b = _anchor(ea), _anchor(eb)
-    blockers = [el for el in board.elements.values()
-                if el.kind in ("track", "pad", "smd", "circle", "poly", "rect")
-                and el.id not in (conn.a, conn.b)]
-    best: Optional[Tuple[float, List[Tuple[float, float]]]] = None
+    reach = params.width / 2 + params.clearance
+    span_x = abs(a[0] - b[0]) + reach + 2.0
+    span_y = abs(a[1] - b[1]) + reach + 2.0
+    blockers = []
+    for el in board.elements.values():
+        if el.kind not in ("track", "pad", "smd", "circle", "poly", "rect"):
+            continue
+        if el.id in (conn.a, conn.b) or el.locked and el.kind not in ("track", "pad", "smd"):
+            continue
+        bb = el.bbox()
+        if bb is not None and (bb[2] < min(a[0], b[0]) - span_x or
+                               bb[0] > max(a[0], b[0]) + span_x or
+                               bb[3] < min(a[1], b[1]) - span_y or
+                               bb[1] > max(a[1], b[1]) + span_y):
+            continue
+        blockers.append(el)
     grid = max(params.grid, 0.05)
+    box = board.outline_rect()
 
     def snap(v):
         return round(v / grid) * grid
 
+    def free(pts) -> bool:
+        for i in range(len(pts) - 1):
+            for bl in blockers:
+                if _seg_conflict(pts[i], pts[i + 1], bl, params.width, params.clearance):
+                    return False
+        return True
+
+    def length_of(pts) -> float:
+        return sum(dist(pts[i], pts[i + 1]) for i in range(len(pts) - 1))
+
+    def clean_path(pts):
+        out = [pts[0]]
+        for p in pts[1:]:
+            if dist(out[-1], p) > 1e-6:
+                out.append(p)
+        return out if len(out) >= 2 else None
+
+    best: Optional[Tuple[float, List[Tuple[float, float]]]] = None
+
+    def consider(pts):
+        nonlocal best
+        pts = clean_path(pts)
+        if pts is None or not free(pts):
+            return
+        ln = length_of(pts)
+        if best is None or ln < best[0]:
+            best = (ln, pts)
+
     for angle in params.angles:
         for order in (0, 1):
             pts = _make_path(a, b, angle, order, snap)
-            if pts is None or len(pts) < 2:
-                continue
-            ok = True
-            for i in range(len(pts) - 1):
-                for bl in blockers:
-                    if _seg_conflict(pts[i], pts[i + 1], bl, params.width, params.clearance):
-                        ok = False
-                        break
-                if not ok:
-                    break
-            if not ok:
-                continue
-            length = sum(dist(pts[i], pts[i + 1]) for i in range(len(pts) - 1))
-            if best is None or length < best[0]:
-                best = (length, pts)
+            if pts is not None and len(pts) >= 2 and _inside(pts, box, reach):
+                consider(pts)
+    if best is not None:
+        return Track(layer=conn.layer, points=best[1], width=params.width, auto=True)
+
+    step = max(grid, 0.1)
+    reach_limit = max(abs(box[2] - box[0]), abs(box[3] - box[1]), 10.0)
+    steps = max(8, min(400, int(reach_limit / step)))
+    for i in range(1, steps + 1):
+        d = step * i
+        for sign in (1, -1):
+            for horiz in (True, False):
+                raw = _z_path(a, b, sign * d, horiz)
+                pts = [(snap(p[0]), snap(p[1])) for p in raw]
+                if not _inside(pts, box, reach):
+                    continue
+                if consider(pts) or best is not None:
+                    return Track(layer=conn.layer, points=best[1],
+                                 width=params.width, auto=True)
     if best is None:
         return None
-    t = Track(layer=conn.layer, points=best[1], width=params.width, auto=True)
-    return t
+    return Track(layer=conn.layer, points=best[1], width=params.width, auto=True)
+
+
+def _inside(pts, box, margin: float) -> bool:
+    """Все точки маршрута внутри контура платы с запасом на ширину дорожки."""
+    x0, y0, x1, y1 = box
+    return all(x0 + margin <= px <= x1 - margin and y0 + margin <= py <= y1 - margin
+               for px, py in pts)
+
+
+def _z_path(a, b, side: float, horizontal: bool):
+    """Обход: из a выходим перпендикулярно, идём вдоль, возвращаемся в b."""
+    if abs(side) < 1e-9:
+        return [a, b]
+    if horizontal:
+        return [a, (a[0], a[1] + side), (b[0], a[1] + side), b]
+    return [a, (a[0] + side, a[1]), (a[0] + side, b[1]), b]
 
 
 def _anchor(el: Element) -> Tuple[float, float]:
@@ -347,8 +572,14 @@ def _seg_conflict(p, q, blocker: Element, width: float, clearance: float) -> boo
     if isinstance(blocker, (Pad, SmdPad)):
         return pt_seg_dist((blocker.x, blocker.y), p, q) < need + _half(blocker)
     if isinstance(blocker, (Track, CircleEl, PolygonEl, RectEl)):
-        pts = blocker.outline_points()
         half = _half(blocker)
+        bb = blocker.bbox()
+        if bb is not None:
+            if (max(p[0], q[0]) < bb[0] - need - half or min(p[0], q[0]) > bb[2] + need + half
+                    or max(p[1], q[1]) < bb[1] - need - half
+                    or min(p[1], q[1]) > bb[3] + need + half):
+                return False
+        pts = _outline_of(blocker)
         if isinstance(blocker, Track) and len(pts) >= 2:
             for i in range(len(pts) - 1):
                 if _seg_dist(p, q, pts[i], pts[i + 1]) < need + half:
@@ -358,6 +589,22 @@ def _seg_conflict(p, q, blocker: Element, width: float, clearance: float) -> boo
                 if pt_seg_dist(pts[i], p, q) < need + half:
                     return True
     return False
+
+
+_OUTLINE_CACHE: Dict[int, Tuple[Element, List[Tuple[float, float]]]] = {}
+
+
+def _outline_of(el: Element) -> List[Tuple[float, float]]:
+    """Контур элемента с кэшем: трассировщик спрашивает одни и те же контуры."""
+    key = id(el)
+    hit = _OUTLINE_CACHE.get(key)
+    if hit is not None and hit[0] is el:
+        return hit[1]
+    pts = el.outline_points()
+    if len(_OUTLINE_CACHE) > 20000:
+        _OUTLINE_CACHE.clear()
+    _OUTLINE_CACHE[key] = (el, pts)
+    return pts
 
 
 def _half(el: Element) -> float:

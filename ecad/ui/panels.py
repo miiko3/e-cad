@@ -1151,14 +1151,22 @@ class LibraryPanel(QFrame):
         h = QHBoxLayout()
         t = _lbl("Библиотека макросов", True)
         t.setStyleSheet("font-size: 15px;")
+        b_folder = QToolButton()
+        b_folder.setIcon(icon("lib", "#c8d4e4", 18))
+        b_folder.setToolTip("Открыть папку библиотеки — скопируйте туда свои компоненты")
+        b_folder.clicked.connect(self.open_folder)
         b_refresh = QToolButton()
         b_refresh.setIcon(icon("filter", "#c8d4e4", 18))
-        b_refresh.setToolTip("Обновить список")
+        b_refresh.setToolTip("Обновить список (Ctrl+R)")
         b_refresh.clicked.connect(self.refresh)
         h.addWidget(t)
         h.addStretch(1)
+        h.addWidget(b_folder)
         h.addWidget(b_refresh)
         v.addLayout(h)
+        self.folder_hint = _lbl("", small=True, wrap=True)
+        self.folder_hint.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        v.addWidget(self.folder_hint)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Поиск макроса…")
         self.search.setClearButtonEnabled(True)
@@ -1232,6 +1240,7 @@ class LibraryPanel(QFrame):
                 head.addChild(it)
         self.tree.expandAll()
         self.tree.blockSignals(False)
+        self._update_hint(len(groups and [m for v_ in groups.values() for m in v_] or []))
 
     def _preview(self):
         self.preview.show_macro(self.current_macro())
@@ -1257,6 +1266,25 @@ class LibraryPanel(QFrame):
             self.library.delete(m)
             self.library.scan()
             self.refresh()
+
+    def open_folder(self):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        path = self.library.folder
+        os.makedirs(path, exist_ok=True)
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(path)):
+            self.canvas.statusMessage.emit(f"Папка библиотеки: {path}")
+
+    def rescan(self):
+        """Перечитать папку: подхватывает скопированные сторонние компоненты."""
+        self.library.scan()
+        self.refresh()
+
+    def _update_hint(self, total: int):
+        path = self.library.folder
+        self.folder_hint.setText(
+            f"Папка: {path}\nСкопируйте сюда .ecadm, .json или .kicad_mod — "
+            f"компоненты появятся сами. Сейчас: {total} шт.")
 
     def import_macro(self):
         from PySide6.QtWidgets import QFileDialog

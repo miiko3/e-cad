@@ -49,6 +49,7 @@ DEFAULT_SETTINGS: Dict = {
     "units": "mm",                 
     "grid_step": 0.5,
     "grid_steps": [0.1, 0.25, 0.5, 1.0, 1.27, 2.54, 5.0, 10.0, 25.4],
+    "wheel_step": 90.0,
     "grid_visible": True,
     "grid_thick": 5,
     "snap": True,
@@ -139,6 +140,10 @@ class Canvas(QWidget):
         self.cache: Optional[QPixmap] = None
         self.cache_key = None
         self._cache_pixmap = None
+        self._paint_rev = 0
+        self._bg: Optional[QPixmap] = None
+        self._bg_key = None
+        self._bbox_cache: Dict[str, object] = {}
 
         self.preview: List[Element] = []
         self.temp_points: List[Tuple[float, float]] = []
@@ -183,6 +188,8 @@ class Canvas(QWidget):
         self.redo_stack.clear()
         self.probe_ids.clear()
         self.rev += 1
+        self._paint_rev += 1
+        self._bbox_cache.clear()
         self.update()
 
     def board(self) -> Board:
@@ -191,10 +198,14 @@ class Canvas(QWidget):
     def invalidate(self, structural: bool = True):
         if structural:
             self.rev += 1
+        self._paint_rev += 1
+        self._bbox_cache.clear()
         self.update()
 
     def touch(self):
         self.doc.dirty = True
+        self._paint_rev += 1
+        self._bbox_cache.clear()
         self.documentChanged.emit()
 
     
@@ -412,30 +423,79 @@ class Canvas(QWidget):
         self.viewChanged.emit()
 
     
+    def _bbox_of(self, el: Element):
+        """Габариты элемента с кэшем (пересчёт при каждом изменении документа)."""
+        bb = self._bbox_cache.get(el.id, False)
+        if bb is False:
+            bb = el.bbox()
+            self._bbox_cache[el.id] = bb
+        return bb
+
+    def _visible_box(self):
+        f = self.field_rect()
+        x0 = self.offset.x() - 2.0
+        y0 = self.offset.y() - 2.0
+        return (x0, y0,
+                x0 + f.width() / self.scale + 4.0,
+                y0 + f.height() / self.scale + 4.0)
+
+    @staticmethod
+    def _box_hits(box, view) -> bool:
+        return not (box[2] < view[0] or box[0] > view[2] or
+                    box[3] < view[1] or box[1] > view[3])
+
+    def _static_key(self):
+        return (self.rev, self._paint_rev, round(self.scale, 6),
+                round(self.offset.x(), 4), round(self.offset.y(), 4),
+                self.width(), self.height(), self.active_layer, self.tool == "photo",
+                self.photo_side, self.photo_components, self.photo_transparent,
+                self.template_dpi, id(self.tokens),
+                self.settings["grid_visible"], self.settings["grid_step"],
+                self.settings["grid_thick"], self.settings["snap"],
+                self.settings["fill_dim"], self.settings["fill_through"],
+                self.settings["hole_color"], self.settings["units"],
+                self.settings["show_origin"], self.template is not None)
+
     def paintEvent(self, event):
         p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        p.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
-        t = self.tokens or {}
-        p.fillRect(self.rect(), QColor(t.get("canvas", "#0a0d10")))
-        field = self.field_rect()
-        p.fillRect(field, QColor(t.get("canvas", "#0a0d10")))
-        self._draw_board_bg(p, field)
-        if self.settings["grid_visible"]:
-            self._draw_grid(p, field)
-        if self.template is not None:
-            self._draw_template(p, field)
-        self._draw_elements(p)
-        self._draw_connections(p)
+        key = self._static_key()
+        if self._bg is None or self._bg_key != key:
+            self._render_bg(key)
+        if self._bg is not None:
+            p.drawPixmap(0, 0, self._bg)
         self._draw_preview(p)
         self._draw_marquee(p)
         self._draw_selection_marks(p)
         self._draw_probe(p)
         self._draw_measure(p)
+        self._draw_conn_hot(p)
         self._draw_macro_preview(p)
-        self._draw_rulers(p)
+        self._draw_ruler_cursor(p)
         self._draw_cursor(p)
         p.end()
+
+    def _render_bg(self, key):
+        pm = QPixmap(self.size())
+        t = self.tokens or {}
+        pm.fill(QColor(t.get("canvas", "#0a0d10")))
+        p = QPainter(pm)
+        try:
+            p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            p.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+            field = self.field_rect()
+            p.fillRect(field, QColor(t.get("canvas", "#0a0d10")))
+            self._draw_board_bg(p, field)
+            if self.settings["grid_visible"]:
+                self._draw_grid(p, field)
+            if self.template is not None:
+                self._draw_template(p, field)
+            self._draw_elements(p)
+            self._draw_connections(p)
+            self._draw_rulers(p)
+        finally:
+            p.end()
+        self._bg = pm
+        self._bg_key = key
 
     def _draw_board_bg(self, p: QPainter, field: QRect):
         t = self.tokens or {}
@@ -539,13 +599,21 @@ class Canvas(QWidget):
     def _draw_elements(self, p: QPainter):
         b = self.board()
         photo = self.photo_mode()
-        items = [el for el in b.elements.values() if el.kind != "conn"]
-        if photo:
-            side = self.photo_side
-            items = [el for el in items if self._el_on_side(el, side)]
-        else:
-            items = [el for el in items if self._visible(el.layer) or el.layer == self.active_layer]
-        
+        view = self._visible_box()
+        items = []
+        for el in b.elements.values():
+            if el.kind == "conn":
+                continue
+            if photo:
+                if not self._el_on_side(el, self.photo_side):
+                    continue
+            elif not (self._visible(el.layer) or el.layer == self.active_layer):
+                continue
+            if el.kind != "fill":
+                bb = self._bbox_of(el)
+                if bb is None or not self._box_hits(bb, view):
+                    continue
+            items.append(el)
         items.sort(key=draw_sort_key)
         for el in items:
             mir = self.layer_mirror(el.layer)
@@ -769,25 +837,38 @@ class Canvas(QWidget):
 
     
     def _draw_connections(self, p: QPainter):
-        b = self.board()
-        t = self.tokens or {}
         if self.photo_mode():
             return
-        p.setPen(QPen(QColor("#7ddb9a"), 1.4, Qt.PenStyle.DashLine))
+        view = self._visible_box()
+        for a, c in self._conn_segments():
+            x0, y0 = min(a.x(), c.x()), min(a.y(), c.y())
+            x1, y1 = max(a.x(), c.x()), max(a.y(), c.y())
+            m = 4.0
+            if x1 < view[0] - m or x0 > view[2] + m or y1 < view[1] - m or y0 > view[3] + m:
+                continue
+            p.setPen(QPen(QColor("#5aa87a"), 1.2, Qt.PenStyle.DashLine))
+            p.drawLine(a, c)
+
+    def _conn_segments(self):
+        b = self.board()
+        out = []
         for el in b.elements.values():
             if not isinstance(el, Connection) or not el.a or not el.b:
                 continue
             ea, eb = b.elements.get(el.a), b.elements.get(el.b)
             if ea is None or eb is None:
                 continue
-            a = self.to_screen(_el_center(ea))
-            c = self.to_screen(_el_center(eb))
-            hot = self.tool == "route" and self._near_conn(a, c)
-            if hot:
-                p.setPen(QPen(QColor(t.get("warning", "#f5c96a")), 2.4))
-            else:
-                p.setPen(QPen(QColor("#5aa87a"), 1.2, Qt.PenStyle.DashLine))
-            p.drawLine(a, c)
+            out.append((self.to_screen(_el_center(ea)), self.to_screen(_el_center(eb))))
+        return out
+
+    def _draw_conn_hot(self, p: QPainter):
+        """Подсветка связи под курсором — поверх кэша, при автотрассе."""
+        if self.photo_mode() or self.tool != "route" or not self._mouse_in:
+            return
+        p.setPen(QPen(QColor((self.tokens or {}).get("warning", "#f5c96a")), 2.4))
+        for a, c in self._conn_segments():
+            if self._near_conn(a, c):
+                p.drawLine(a, c)
 
     def _near_conn(self, a: QPointF, b: QPointF) -> bool:
         if not self._mouse_in:
@@ -943,15 +1024,17 @@ class Canvas(QWidget):
                            fmt_len(v, self.settings["units"], 2))
             v += step
             idx += 1
-        if self._mouse_in:
-            p.setPen(QPen(QColor("#ff5252"), 1))
-            cx = self.to_screen((self.cursor_mm[0], 0))
-            cy = self.to_screen((0, self.cursor_mm[1]))
-            p.drawLine(QPointF(cx.x(), 0), QPointF(cx.x(), RULER))
-            p.drawLine(QPointF(0, cy.y()), QPointF(RULER, cy.y()))
-        
         p.setPen(QPen(QColor(t.get("outline", "#8c9199")), 1))
         p.drawLine(0, RULER - 1, RULER - 1, RULER - 1)
+
+    def _draw_ruler_cursor(self, p: QPainter):
+        if not self._mouse_in:
+            return
+        p.setPen(QPen(QColor("#ff5252"), 1))
+        cx = self.to_screen((self.cursor_mm[0], 0))
+        cy = self.to_screen((0, self.cursor_mm[1]))
+        p.drawLine(QPointF(cx.x(), 0), QPointF(cx.x(), RULER))
+        p.drawLine(QPointF(0, cy.y()), QPointF(RULER, cy.y()))
 
     def _nice_step(self, px: float) -> float:
         steps = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500]
@@ -1009,11 +1092,7 @@ class Canvas(QWidget):
             return
         if ev.button() == Qt.MouseButton.RightButton:
             if self.placed_macro is not None:
-                self.placed_macro = None
-                self.preview.clear()
-                self.temp_points.clear()
-                self.statusMessage.emit("Размещение макроса отменено (ПКМ)")
-                self.update()
+                self.cancel_macro_place("Размещение макроса отменено (ПКМ)")
                 return
             
             if self.tool == "track" and len(self.temp_points) >= 2:
@@ -1114,20 +1193,37 @@ class Canvas(QWidget):
         self.update()
 
     def wheelEvent(self, ev):
-        ad = ev.angleDelta()
         mods = ev.modifiers()
         if mods & Qt.KeyboardModifier.ControlModifier:
-            factor = 1.2 if ad.y() > 0 else 1 / 1.2
+            ad = ev.angleDelta()
+            pd = ev.pixelDelta()
+            delta = ad.y() if ad.y() else (pd.y() if pd.y() else 0)
+            if not delta:
+                return
+            factor = 1.2 ** (delta / 120.0)
             self.remember_view()
             self.zoom_at(factor, ev.position())
             return
-        step = (ad.y() / 120.0) * 80.0
+        dx, dy = self._wheel_delta(ev)
+        if not dx and not dy:
+            return
         if mods & Qt.KeyboardModifier.ShiftModifier:
-            self.pan_px(step, 0)
-        else:
-            self.pan_px(0, step)
-        if ad.x():
-            self.pan_px((ad.x() / 120.0) * 80.0, 0)
+            dx = dx or dy
+            dy = 0
+        px = float(self.settings.get("wheel_step", 90.0))
+        self.pan_px(dx * px, dy * px)
+        self.viewChanged.emit()
+
+    def _wheel_delta(self, ev) -> Tuple[float, float]:
+        """Шаг колеса в «щелчках»: обычное колесо, трекпад и наклон по X."""
+        ad, pd = ev.angleDelta(), ev.pixelDelta()
+        acc_x, acc_y = self._wheel_x + ad.x() / 120.0 + pd.x() / 40.0, \
+            self._wheel_y + ad.y() / 120.0 + pd.y() / 40.0
+        self._wheel_x, self._wheel_y = acc_x, acc_y
+        return round(acc_x), round(acc_y)
+
+    _wheel_x = 0.0
+    _wheel_y = 0.0
 
     def pan_by(self, dx: float, dy: float):
         self.offset = QPointF(self.offset.x() - dx / self.scale,
@@ -1503,10 +1599,12 @@ class Canvas(QWidget):
         b = self.board()
         for el in b.elements.values():
             if isinstance(el, Connection) and (el.a == pad.id or el.b == pad.id):
-                if self._already_routed(b, el):
+                tr = self._routed_track(b, el)
+                if tr is not None:
                     self.push_undo()
-                    self._remove(el.id)
-                    self.statusMessage.emit("Линия связи возвращена (трасса удалена)")
+                    self._remove(tr.id)
+                    self.statusMessage.emit(
+                        f"Трасса снята ({tr.length():.2f} мм), линия связи осталась")
                     self.invalidate()
                     return
                 tr = autotrace(b, el, RouteParams(width=self.settings["route_width"],
@@ -1541,6 +1639,19 @@ class Canvas(QWidget):
             self._remove(conn.id)
             self.invalidate()
             self.statusMessage.emit("Автотрасса: свободный путь не найден")
+
+    def _routed_track(self, b, conn) -> Optional[Track]:
+        """Автотрасса, соединяющая контакты этой связи (если она разведена)."""
+        for el in b.elements.values():
+            if isinstance(el, Track) and el.auto:
+                pa = b.elements.get(conn.a)
+                pb = b.elements.get(conn.b)
+                if pa is None or pb is None:
+                    continue
+                for p in el.points:
+                    if dist(p, _el_center(pa)) < 0.3 or dist(p, _el_center(pb)) < 0.3:
+                        return el
+        return None
 
     def _already_routed(self, b, conn) -> bool:
         for el in b.elements.values():
@@ -2021,8 +2132,8 @@ class Canvas(QWidget):
         self.placed_macro = macro
         self._placed_name = macro.name
         self.set_tool("cursor")
-        self.statusMessage.emit(f"Размещение макроса «{macro.name}»: ЛКМ — поставить, "
-                                f"ПКМ — отмена")
+        self.statusMessage.emit(f"Размещение макроса «{macro.name}»: ЛКМ — поставить "
+                                f"(можно много раз), ПКМ или Esc — отменить")
 
     def place_macro_at(self, pos: Tuple[float, float]):
         if self.placed_macro is None:
@@ -2031,20 +2142,58 @@ class Canvas(QWidget):
         els = self.placed_macro.instance(pos[0], pos[1], self.macro_rot, self.macro_bottom)
         ids = []
         for el in els:
-            el.id = _next_id()          
+            el.id = _next_id()
             self.board().elements[el.id] = el
             ids.append(el.id)
-        name = self._placed_name or self.placed_macro.name if self.placed_macro else self._placed_name
-        self.placed_macro = None          
+        name = self.placed_macro.name or self._placed_name
         self.select(ids)
         self.touch()
         self.invalidate()
-        self.statusMessage.emit(f"Макрос «{name}» размещён под курсором")
+        self.statusMessage.emit(f"Макрос «{name}» размещён · ЛКМ — ещё один, "
+                                f"Esc — закончить")
+
+    def cancel_macro_place(self, message: str = "Размещение макроса отменено"):
+        if self.placed_macro is None:
+            return
+        self.placed_macro = None
+        self.preview.clear()
+        self.temp_points.clear()
+        self.marquee = None
+        self.statusMessage.emit(message)
+        self.update()
 
     
+    def cancel_current(self, message: str = "Действие отменено (Esc)"):
+        """Сбросить всё незавершённое: макрос, точки, рамку, связи, измерение."""
+        had = (self.placed_macro is not None or bool(self.temp_points) or
+               bool(self.preview) or self.marquee is not None or
+               self.conn_first is not None or self.route_first is not None)
+        self.temp_points.clear()
+        self.preview.clear()
+        self.conn_first = None
+        self.route_first = None
+        self.measure_from = None
+        self.measure_to = None
+        self.marquee = None
+        if self.placed_macro is not None:
+            self.placed_macro = None
+            self.statusMessage.emit("Размещение макроса отменено (Esc)")
+        elif had:
+            self.statusMessage.emit(message)
+        self.set_tool("cursor")
+        self.update()
+
     def keyPressEvent(self, ev):
         key = ev.key()
         if key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
+            if self.placed_macro is not None:
+                ang = {Qt.Key.Key_Left: -90.0, Qt.Key.Key_Right: 90.0,
+                       Qt.Key.Key_Up: 90.0, Qt.Key.Key_Down: -90.0}[key]
+                self.macro_rot = (self.macro_rot + ang) % 360
+                self.statusMessage.emit(f"Поворот макроса «{self._placed_name}»: "
+                                        f"{self.macro_rot:g}° (Esc — отмена)")
+                self.update()
+                return
             if self.selection:
                 ang = {Qt.Key.Key_Left: -90.0, Qt.Key.Key_Right: 90.0,
                        Qt.Key.Key_Up: 90.0, Qt.Key.Key_Down: -90.0}[key]
@@ -2068,17 +2217,7 @@ class Canvas(QWidget):
                 self.finish_track()
                 return
         if key == Qt.Key.Key_Escape:
-            self.temp_points.clear()
-            self.preview.clear()
-            self.conn_first = None
-            self.measure_from = None
-            self.measure_to = None
-            self.marquee = None
-            if self.placed_macro is not None:
-                self.placed_macro = None
-                self.statusMessage.emit("Размещение макроса отменено (Esc)")
-            self.set_tool("cursor")
-            self.update()
+            self.cancel_current()
             return
         if key == Qt.Key.Key_Delete:
             self.delete_selected()

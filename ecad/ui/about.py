@@ -95,7 +95,7 @@ class ActorBlock(QFrame):
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(10)
-        head = QLabel("АВТОР")
+        head = QLabel("Автор")
         head.setStyleSheet(HEAD_STYLE + " font-size: 16px;")
         v.addWidget(head)
         name = QLabel(f"Автор и разработчик: {AUTHOR}")

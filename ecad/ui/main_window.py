@@ -5,7 +5,8 @@ import os
 import time
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import QPoint, QSettings, Qt, QTimer, QUrl
+from PySide6.QtCore import (QFileSystemWatcher, QPoint, QSettings, Qt, QTimer,
+                            QUrl)
 from PySide6.QtGui import QAction, QActionGroup, QColor, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (QApplication, QFileDialog, QFrame, QHBoxLayout,
                                QInputDialog, QLabel, QMainWindow, QMessageBox,
@@ -58,6 +59,14 @@ class MainWindow(QMainWindow):
             self.library.ensure_defaults()
         except Exception:
             pass
+        self._lib_watcher = QFileSystemWatcher(self)
+        self._lib_watcher.fileChanged.connect(lambda _p: self._lib_changed())
+        self._lib_watcher.directoryChanged.connect(lambda _p: self._lib_changed())
+        self._lib_timer = QTimer(self)
+        self._lib_timer.setSingleShot(True)
+        self._lib_timer.setInterval(700)
+        self._lib_timer.timeout.connect(self.pane_lib.rescan if hasattr(self, "pane_lib")
+                                        else lambda: None)
 
         self._build_ui()
         self._build_menu()
@@ -103,8 +112,10 @@ class MainWindow(QMainWindow):
         self.btn_help.setToolTip("Инструкция по использованию")
         self.btn_help.clicked.connect(self.open_help)
         self.btn_about = QToolButton()
-        self.btn_about.setIcon(icon("info", "#c8d4e4", 22))
-        self.btn_about.setToolTip("О программе · блок «Актор»")
+        self.btn_about.setText("О программе")
+        self.btn_about.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        self.btn_about.setObjectName("AboutButton")
+        self.btn_about.setToolTip("О программе: автор, ссылки на поддержку и репозитории")
         self.btn_about.clicked.connect(self.open_about)
         for b in (self.btn_undo, self.btn_redo, self.btn_help, self.btn_about):
             th.addWidget(b)
@@ -292,8 +303,8 @@ class MainWindow(QMainWindow):
         self._act(m, "Мастер площадок…", self.open_wizard, "Ctrl+Shift+W",
                   "Создать посадочное место SIP / DIP / QUAD / кольцо")
         self._act(m, "Маска по умолчанию", self.canvas.reset_mask,
-                  tip="Открыть окна маски по приводным маскам (только КП THT/SMD)")
-        self._act(m, "Фотовид", lambda: self.set_tool("photo"), "V")
+                   tip="Открыть окна маски по приводным маскам (только КП THT/SMD)")
+        self._act(m, "Фотовид", lambda: self.set_tool("photo"))
         self._act(m, "Термобарьер для выделенных…", self.thermal_dialog)
         self._act(m, "Задать зазор для всех элементов…", self.set_clearance)
         m.addSeparator()
@@ -324,12 +335,13 @@ class MainWindow(QMainWindow):
         self._act(m, "Светлая / тёмная тема", self.toggle_theme)
         m.addSeparator()
         for key, name, hot, ic in TOOLS:
-            self._act(m, f"{name}  ({hot})", lambda _c=False, k=key: self.set_tool(k), hot)
+            self._act(m, f"{name}  ({hot})", lambda _c=False, k=key: self.set_tool(k),
+                      None if hot == "Esc" else hot)
 
         
         m = mb.addMenu("Справка")
         self._act(m, "Инструкция по использованию", self.open_help, "F1")
-        self._act(m, "О программе · блок «Актор»", self.open_about)
+        self._act(m, "О программе", self.open_about)
         self._act(m, "Горячие клавиши", self.show_keys)
         self._act(m, "Структура платы и цвета слоёв", self.show_layer_info)
 
@@ -353,6 +365,23 @@ class MainWindow(QMainWindow):
         self.status_panel.optionToggled.connect(self._option)
         self.pane_lib.placeMacro.connect(self._place_macro)
         self.pane_lib.saveMacroRequested.connect(self._save_macro_dialog)
+        self._watch_library()
+
+    def _watch_library(self):
+        try:
+            paths = [p for p in self.library.folders() if os.path.isdir(p)]
+            existing = set(self._lib_watcher.directories())
+            for p in existing:
+                self._lib_watcher.removePath(p)
+            if paths:
+                self._lib_watcher.addPaths(paths)
+        except Exception:
+            pass
+
+    def _lib_changed(self):
+        self._watch_library()
+        if not self._lib_timer.isActive():
+            self._lib_timer.start()
 
     def _place_macro(self, macro):
         self.canvas.start_macro_place(macro)
@@ -1023,7 +1052,12 @@ Ctrl+P  печать
     
     def keyPressEvent(self, ev):
         key = ev.key()
+        if key == Qt.Key.Key_Escape:
+            self.canvas.cancel_current()
+            return
         for hot, tool in self.canvas.settings["keys"].items():
+            if hot == "Esc":
+                continue
             if QKeySequence(hot).toString() == QKeySequence(key).toString():
                 self.set_tool(tool)
                 return

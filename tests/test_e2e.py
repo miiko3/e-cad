@@ -266,8 +266,8 @@ def test_core():
 
 
 def test_ui():
-    from PySide6.QtCore import QPointF, Qt
-    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
     from PySide6.QtWidgets import (QApplication, QDialog, QFileDialog, QInputDialog,
                                    QMenu, QMessageBox)
 
@@ -452,7 +452,7 @@ def test_ui():
                                        Qt.KeyboardModifier.NoModifier))
         app.processEvents()
         ok(len(b.elements) > before, "макрос не размещён")
-        ok(c.placed_macro is None, "размещение не сброшено")
+        ok(c.placed_macro is not None, "размещение сброшено после первой вставки")
         pads = [c.board().elements[i] for i in c.selection
                 if c.board().elements[i].kind in ("pad", "smd")]
         ok(pads, "нет контактов у размещённого макроса")
@@ -463,6 +463,59 @@ def test_ui():
         return f"размещено {len(pads)} контактов в ({cx:.2f},{cy:.2f})"
 
     check("размещение макроса под курсором", ui_macro_placement)
+
+    def ui_macro_repeat():
+        """Макрос ставится многократно, отменяется Esc."""
+        b = c.board()
+        macro = next((m for m in win.library.macros if m.name == "SOIC-8"), None)
+        ok(macro is not None, "макрос SOIC-8 не найден")
+        win.pane_lib.tree.clear()
+        win.pane_lib.refresh()
+        app.processEvents()
+        item = None
+        for g in range(win.pane_lib.tree.topLevelItemCount()):
+            head = win.pane_lib.tree.topLevelItem(g)
+            for j in range(head.childCount()):
+                it = head.child(j)
+                if it.data(0, Qt.ItemDataRole.UserRole) is macro:
+                    item = it
+                    break
+        ok(item is not None, "макрос не найден в дереве")
+        win.pane_lib._on_item_clicked(item, 0)
+        ok(c.placed_macro is macro, "клик по макросу не запустил размещение")
+        n_els = len(macro.elements)
+        before = len(b.elements)
+        spots = [(60.0, 30.0), (75.0, 30.0), (90.0, 30.0)]
+        for (mx, my) in spots:
+            pos = QPointF(c.to_screen((mx, my), False))
+            c.mousePressEvent(QMouseEvent(QMouseEvent.Type.MouseButtonPress, pos, pos.toPoint(),
+                                         Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+                                         Qt.KeyboardModifier.NoModifier))
+            c.mouseReleaseEvent(QMouseEvent(QMouseEvent.Type.MouseButtonRelease, pos,
+                                            pos.toPoint(), Qt.MouseButton.LeftButton,
+                                            Qt.MouseButton.NoButton,
+                                            Qt.KeyboardModifier.NoModifier))
+            app.processEvents()
+        ok(len(b.elements) - before == 3 * n_els,
+           f"после 3 кликов добавлено {len(b.elements) - before}, ожидалось {3 * n_els}")
+        ok(c.placed_macro is macro, "макрос сброшен после нескольких вставок")
+        c.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Escape,
+                                  Qt.KeyboardModifier.NoModifier))
+        app.processEvents()
+        ok(c.placed_macro is None, "Esc не отменил размещение")
+        n_after_esc = len(b.elements)
+        pos = QPointF(c.to_screen((100.0, 30.0), False))
+        c.mousePressEvent(QMouseEvent(QMouseEvent.Type.MouseButtonPress, pos, pos.toPoint(),
+                                     Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+                                     Qt.KeyboardModifier.NoModifier))
+        c.mouseReleaseEvent(QMouseEvent(QMouseEvent.Type.MouseButtonRelease, pos, pos.toPoint(),
+                                        Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton,
+                                        Qt.KeyboardModifier.NoModifier))
+        app.processEvents()
+        eq(len(b.elements), n_after_esc, "после Esc макрос ставится снова")
+        return f"3 вставки по {n_els} эл., Esc отменяет"
+
+    check("повторное размещение макроса и отмена Esc", ui_macro_repeat)
 
     def ui_panels():
         c.set_tool("cursor")
@@ -503,21 +556,141 @@ def test_ui():
     check("поворот выделенного стрелками", ui_arrow_rotate)
 
     def ui_wheel_pan():
-        old_off = QPointF(c.offset)
-        ad_y, ad_x = 240, 0
-        from PySide6.QtGui import QWheelEvent
-        from PySide6.QtCore import QPoint as _QPoint
-        ev = QWheelEvent(_QPoint(300, 300), _QPoint(win.mapToGlobal(_QPoint(300, 300))),
-                         _QPoint(ad_x, ad_y), _QPoint(ad_x, ad_y),
-                         Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
-                         Qt.ScrollPhase.ScrollUpdate, False)
-        c.wheelEvent(ev)
-        app.processEvents()
-        ok(c.offset != old_off, "колесо не прокручивает вид")
-        ok(abs(c.offset.y() - old_off.y()) > 1.0, "вертикальная прокрутка слишком мала")
-        return f"смещение по Y: {c.offset.y() - old_off.y():.1f} мм"
+        from PySide6.QtCore import QPointF as _QPF
 
-    check("прокрутка колесом без Ctrl", ui_wheel_pan)
+        def send(pixel, angle, mods):
+            ev = QWheelEvent(_QPF(300, 300), win.mapToGlobal(QPoint(300, 300)),
+                             QPoint(*pixel), QPoint(*angle),
+                             Qt.MouseButton.NoButton, mods,
+                             Qt.ScrollPhase.ScrollUpdate, False)
+            c.wheelEvent(ev)
+            app.processEvents()
+
+        def moved(px, py, mods, label):
+            old = QPointF(c.offset)
+            send(px, py, mods)
+            d = c.offset - old
+            ok(abs(d.x()) > 0.01 or abs(d.y()) > 0.01, f"{label}: колесо не прокручивает")
+            return d
+
+        d = moved((0, 0), (0, 240), Qt.KeyboardModifier.NoModifier, "колесо")
+        ok(abs(d.y()) > 1.0, "вертикальная прокрутка слишком мала")
+        d = moved((0, 0), (0, 240), Qt.KeyboardModifier.ShiftModifier, "Shift+колесо")
+        ok(abs(d.x()) > 1.0, "горизонтальная прокрутка по Shift не работает")
+        d = moved((0, 0), (240, 0), Qt.KeyboardModifier.NoModifier, "наклон колеса")
+        ok(abs(d.x()) > 1.0, "прокрутка по X при наклоне колеса не работает")
+        moved((0, 40), (0, 0), Qt.KeyboardModifier.NoModifier, "трекпад по Y")
+        moved((40, 0), (0, 0), Qt.KeyboardModifier.NoModifier, "трекпад по X")
+        old_off, old_scale = QPointF(c.offset), c.scale
+        send((0, 0), (0, 240), Qt.KeyboardModifier.ControlModifier)
+        ok(c.scale != old_scale, "Ctrl+колесо не меняет масштаб")
+        c.offset = old_off
+        c.scale = old_scale
+        c.invalidate()
+        return "колесо: Y, X, Shift, наклон, трекпад, Ctrl — все работают"
+
+    check("прокрутка колесом по X и Y", ui_wheel_pan)
+
+    def ui_esc_cancels():
+        c.set_tool("track")
+        c.select([])
+        field = c.field_rect()
+        cx, cy = c.to_model(field.center())
+        for dx, dy in ((-6.0, -4.0), (6.0, 4.0)):
+            spot = (cx + dx, cy + dy)
+            pos = QPointF(c.to_screen(spot, False))
+            c.mousePressEvent(QMouseEvent(QMouseEvent.Type.MouseButtonPress, pos, pos.toPoint(),
+                                         Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+                                         Qt.KeyboardModifier.NoModifier))
+            c.mouseReleaseEvent(QMouseEvent(QMouseEvent.Type.MouseButtonRelease, pos,
+                                            pos.toPoint(), Qt.MouseButton.LeftButton,
+                                            Qt.MouseButton.NoButton,
+                                            Qt.KeyboardModifier.NoModifier))
+            app.processEvents()
+        ok(len(c.temp_points) == 2, f"точек дорожки {len(c.temp_points)}, ожидалось 2")
+        c.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Escape,
+                                  Qt.KeyboardModifier.NoModifier))
+        app.processEvents()
+        eq(len(c.temp_points), 0, "Esc не сбросил точки дорожки")
+        eq(c.tool, "cursor", "Esc не вернул инструмент «Курсор»")
+        c.set_tool("pad")
+        cpos = QPointF(field.center())
+        c.mousePressEvent(QMouseEvent(QMouseEvent.Type.MouseButtonPress, cpos, cpos.toPoint(),
+                                     Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+                                     Qt.KeyboardModifier.NoModifier))
+        app.processEvents()
+        ok(c.conn_first is None, "связь не должна быть начата инструментом КП")
+        return "Esc сбрасывает точки, макрос, инструмент"
+
+    check("Esc отменяет текущее действие", ui_esc_cancels)
+
+    def ui_library_folder():
+        from ecad.core.tools_lib import Library
+        folder = os.path.join(TMP, "lib_folder")
+        os.makedirs(os.path.join(folder, "Диоды"), exist_ok=True)
+        kicad = ('(footprint "R_0805_2012Metric"\n'
+                 '  (pad "1" smd rect (at -1.0 0) (size 1.0 1.3) (layers "F.Cu"))\n'
+                 '  (pad "2" smd rect (at 1.0 0) (size 1.0 1.3) (layers "F.Cu"))\n'
+                 '  (fp_line (start -1.2 -0.7) (end 1.2 -0.7) (layer "F.SilkS"))\n)\n')
+        path = os.path.join(folder, "Диоды", "R_0805.kicad_mod")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(kicad)
+        with open(os.path.join(folder, "не_макрос.txt"), "w", encoding="utf-8") as f:
+            f.write(" мусор")
+        lib = Library(folder)
+        macros = lib.scan()
+        eq(len(macros), 1, "подхвачено файлов из папки")
+        m = macros[0]
+        eq(m.name, "R_0805_2012Metric", "имя стороннего компонента")
+        eq(m.group, "Диоды", "имя папки должно стать группой")
+        ok(len(m.elements) >= 3, f"элементов в стороннем компоненте {len(m.elements)}")
+        smd = [e for e in m.elements if e.kind == "smd"]
+        eq(len(smd), 2, "SMD-контактов в импорте")
+        ok(any(os.path.basename(p) == "Диоды" for p in lib.folders()),
+           "вложенная папка не отслеживается")
+        return f"«{m.name}» в группе «{m.group}», элементов {len(m.elements)}"
+
+    check("библиотека: сторонние компоненты из папки", ui_library_folder)
+
+    def ui_paint_speed():
+        import time as _time
+        from ecad.core.model import Pad as _P, Track as _T
+        b = c.board()
+        saved = dict(b.elements)
+        b.elements.clear()
+        b.width, b.height = 200, 150
+        b.origin = (0, 0)
+        for i in range(500):
+            x = (i % 25) * 8.0
+            y = (i // 25) * 7.0
+            b.elements[f"t{i}"] = _T(layer="M1", points=[(x, y), (x + 6.0, y + 4.0)],
+                                      width=0.4)
+        for i in range(150):
+            x = (i % 15) * 13.0
+            y = (i // 15) * 15.0
+            b.elements[f"p{i}"] = _P(layer="M1", x=x, y=y, pad_dia=1.6, hole_dia=0.9)
+        c.invalidate()
+        c.zoom_all()
+        app.processEvents()
+        c.repaint()
+        t0 = _time.time()
+        n = 24
+        for i in range(n):
+            c.mouseMoveEvent(QMouseEvent(QMouseEvent.Type.MouseMove,
+                                         QPointF(400 + i * 5, 350 + (i % 7) * 4),
+                                         QPointF(400 + i * 5, 350 + (i % 7) * 4),
+                                         Qt.MouseButton.NoButton, Qt.MouseButton.NoButton,
+                                         Qt.KeyboardModifier.NoModifier))
+            c.repaint()
+        per = (_time.time() - t0) / n * 1000.0
+        ok(per < 16.0, f"движение мыши лагает: {per:.1f} мс/кадр (должно быть < 16)")
+        b.elements.clear()
+        b.elements.update(saved)
+        c.invalidate()
+        app.processEvents()
+        return f"{per:.1f} мс/кадр при {len(saved) + 650} элементах"
+
+    check("плавное движение мыши по макету", ui_paint_speed)
 
     def ui_left_panel():
         panel = win.tool_panel
@@ -570,7 +743,9 @@ def test_ui():
         ok(any("Закрыть" in t for t in texts), "нет кнопки «Закрыть»")
         block = dlg.findChildren(QLabel)
         head_texts = [w.text() for w in block if isinstance(w, QLabel)]
-        ok(any("АВТОР" in t for t in head_texts), "нет блока «АВТОР»")
+        ok(any(t == "Автор" for t in head_texts), "нет блока «Автор»")
+        ok(not any("АВТОР" in t for t in head_texts), "остался заголовок «АВТОР»")
+        ok(not any("Актор" in t for t in head_texts + texts), "осталось упоминание «Актор»")
         cards = dlg.findChildren(LinksCard)
         ok(len(cards) >= 2, "нет карточек ссылок (соцсети и репозитории)")
         joined = " ".join(w.text() for w in block)
@@ -580,7 +755,23 @@ def test_ui():
         dlg.close()
         return f"блоков ссылок {len(cards)}"
 
-    check("блок «О программе»: автор и репозитории", ui_about)
+    check("блок «Автор» и кнопка «О программе»", ui_about)
+
+    def ui_about_button():
+        from PySide6.QtWidgets import QToolButton
+        eq(win.btn_about.text(), "О программе", "подпись кнопки в верхней панели")
+        ok(not any("Актор" in (w.toolTip() or "") for w in win.findChildren(QToolButton)),
+           "в подсказках осталось «Актор»")
+        actions = [a.text() for a in win.menuBar().findChildren(QMenu)
+                   for a in a.actions()]
+        eq(sum(1 for t in actions if t == "О программе"), 1, "пункт «О программе» в меню")
+        shortcut_v = [a.shortcut().toString() for a in win.findChildren(QMenu)
+                      for a in a.actions() if a.shortcut().toString() == "V"]
+        eq(len(shortcut_v), 1, "сочетание V должно быть одно (иначе не сработает)")
+        c.set_tool("cursor")
+        return "кнопка «О программе», конфликтов клавиш нет"
+
+    check("кнопка «О программе» и клавиша V", ui_about_button)
 
     def ui_dialogs():
         b = c.board()

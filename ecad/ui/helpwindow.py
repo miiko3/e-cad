@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QListWidget,
                                QTextBrowser, QVBoxLayout, QWidget)
 
 APP = "e-cad"
-VERSION = "1.0"
+VERSION = "1.4.0"
 LINKS = {
     "GitHub": "https://github.com/miiko3?tab=repositories",
     "Boosty": "https://boosty.to/miilo3",
@@ -256,7 +256,7 @@ netlist — как в Sprint-Layout. Дизайн интерфейса выпо�
 металлизация, переназначение клавиш, глубина Undo), мастер площадок, маска
 по умолчанию, информация о проекте, проверка тонких «мостиков» заливки,
 открытие демо-проекта.</p></ul>
-<p style="margin-top:16px;"><b>Блок «Актор»</b> — контакты автора и ссылки на поддержку
+<p style="margin-top:16px;"><b>Блок «Автор»</b> — контакты автора и ссылки на поддержку
 находятся в разделе «О программе» (меню Справка → О программе).</p>
 """
     return html
@@ -292,7 +292,7 @@ class HelpWindow(QDialog):
         h.addWidget(self.view, 1)
         v.addLayout(h, 1)
         row = QHBoxLayout()
-        b = QPushButton("О программе и авторе (блок «Актор»)")
+        b = QPushButton("О программе")
         b.clicked.connect(self._about)
         b2 = QPushButton("Закрыть")
         b2.setObjectName("Primary")
