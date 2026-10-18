@@ -1,17 +1,16 @@
-"""Блок «Актор» и окно «О программе»: логотип, автор, ссылки на поддержку."""
+"""Блок «Автор» и окно «О программе»: логотип, автор, ссылки на поддержку."""
 from __future__ import annotations
 
 import os
 import sys
 
-from PySide6.QtCore import Qt, QSize, QUrl
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QPixmap
 from PySide6.QtWidgets import (QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel,
                                QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
 from .helpwindow import APP, AUTHOR, LINKS, VERSION
 from .theme import icon
-
 
 AUTHOR_LINKS = {
     "ВКонтакте": LINKS["ВКонтакте"],
@@ -25,11 +24,10 @@ REPO_LINKS = {
 
 LINK_STYLE = "color:#7ab6ff;"
 CARD_STYLE = "QFrame { background-color:#20252b; border:1px solid #39424d; border-radius:14px; }"
-HEAD_STYLE = ("color:#7ab6ff; font-size: 13px; font-weight: 700; letter-spacing: 2px;")
+HEAD_STYLE = "color:#7ab6ff; font-size: 13px; font-weight: 700; letter-spacing: 2px;"
 
 
 def asset_path(*parts: str) -> str:
-    """Путь к ресурсу: и в пакете, и рядом с main.py."""
     here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     for base in (here, os.path.dirname(os.path.abspath(sys.argv[0]) if sys.argv else "")):
         if not base:
@@ -45,8 +43,6 @@ def open_link(url: str):
 
 
 class LinkLabel(QLabel):
-    """Кликабельная ссылка с подсказкой."""
-
     def __init__(self, text: str, url: str, parent=None):
         super().__init__(text, parent)
         self.url = url
@@ -61,8 +57,6 @@ class LinkLabel(QLabel):
 
 
 class LinksCard(QFrame):
-    """Карточка со ссылками: заголовок + строки «название — адрес — Открыть»."""
-
     def __init__(self, title: str, links: dict, note: str = "", parent=None):
         super().__init__(parent)
         self.setStyleSheet(CARD_STYLE)
@@ -95,15 +89,13 @@ class LinksCard(QFrame):
 
 
 class ActorBlock(QFrame):
-    """Блок «Актор»: автор проекта, соцсети, пожертвования и репозитории."""
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet("background: transparent; border: none;")
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(10)
-        head = QLabel("АКТОР")
+        head = QLabel("АВТОР")
         head.setStyleSheet(HEAD_STYLE + " font-size: 16px;")
         v.addWidget(head)
         name = QLabel(f"Автор и разработчик: {AUTHOR}")
@@ -114,15 +106,13 @@ class ActorBlock(QFrame):
         desc.setWordWrap(True)
         desc.setStyleSheet("color:#c2c7cf; font-size: 12px;")
         v.addWidget(desc)
-        v.addWidget(LinksCard("АВТОР · СОЦСЕТИ И ПОДДЕРЖКА", AUTHOR_LINKS,
+        v.addWidget(LinksCard("СОЦСЕТИ И ПОДДЕРЖКА", AUTHOR_LINKS,
                               "Ссылки открываются в браузере по умолчанию."))
         v.addWidget(LinksCard("РЕПОЗИТОРИИ", REPO_LINKS,
                               "Исходный код e-cad и другие проекты автора."))
 
 
 class AboutDialog(QDialog):
-    """О программе: логотип, сведения и две кнопки — «Автор» и «Репозитории»."""
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"О программе — {APP}")
@@ -168,7 +158,6 @@ class AboutDialog(QDialog):
             iv.addWidget(lb)
         v.addWidget(info)
 
-        
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -177,37 +166,15 @@ class AboutDialog(QDialog):
         self.scroll = scroll
         v.addWidget(scroll, 1)
 
-        
         row = QHBoxLayout()
-        b_author = QPushButton("Автор · ссылки")
-        b_author.setObjectName("Primary")
-        b_author.setIcon(icon("info", "#00325a", 18))
-        b_author.clicked.connect(lambda: self._focus_links(0))
-        b_repo = QPushButton("Репозитории (GitHub)")
-        b_repo.setObjectName("Tonal")
-        b_repo.setIcon(icon("lib", "#7ab6ff", 18))
-        b_repo.clicked.connect(lambda: self._focus_links(1))
-        b_help = QPushButton("Инструкция по использованию")
-        b_help.setObjectName("Outline")
-        b_help.clicked.connect(self._help)
         b_close = QPushButton("Закрыть")
-        b_close.setObjectName("Outline")
+        b_close.setObjectName("Primary")
         b_close.clicked.connect(self.accept)
-        for b in (b_author, b_repo, b_help):
-            row.addWidget(b)
         row.addStretch(1)
         row.addWidget(b_close)
         v.addLayout(row)
 
-        self._cards = []
-
-    def _focus_links(self, index: int):
-        """Прокрутить окно к нужному блоку ссылок (Автор / Репозитории)."""
+    def focus_links(self, index: int):
         cards = self.findChildren(LinksCard)
         if 0 <= index < len(cards):
             self.scroll.ensureWidgetVisible(cards[index], 0, 40)
-            cards[index].setToolTip("Блок " + cards[index].title_text)
-
-    def _help(self):
-        from .helpwindow import HelpWindow
-        HelpWindow(self).exec()

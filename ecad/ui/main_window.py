@@ -84,22 +84,6 @@ class MainWindow(QMainWindow):
         top.setFixedHeight(52)
         th = QHBoxLayout(top)
         th.setContentsMargins(12, 6, 12, 6)
-        logo = QLabel()
-        p = asset_path("assets", "logo.png")
-        if os.path.exists(p):
-            from PySide6.QtGui import QPixmap
-            logo.setPixmap(QPixmap(p).scaled(32, 32, Qt.AspectRatioMode.KeepAspectRatio,
-                                            Qt.TransformationMode.SmoothTransformation))
-        th.addWidget(logo)
-        titles = QVBoxLayout()
-        titles.setSpacing(0)
-        t = QLabel("e-cad")
-        t.setObjectName("AppTitle")
-        sub = QLabel("САПР топологии печатных плат")
-        sub.setObjectName("AppSubtitle")
-        titles.addWidget(t)
-        titles.addWidget(sub)
-        th.addLayout(titles)
         th.addStretch(1)
         self.doc_label = QLabel("Новый проект")
         self.doc_label.setObjectName("AppSubtitle")

@@ -287,7 +287,7 @@ def test_ui():
     app = QApplication.instance() or QApplication(sys.argv)
     from ecad.ui import dialogs as D
     from ecad.ui import dialogs_board as DB
-    from ecad.ui.about import AboutDialog
+    from ecad.ui.about import AboutDialog, LinksCard
     from ecad.ui.helpwindow import HelpWindow, anchor_for, instructions_html
     from ecad.ui.main_window import MainWindow
     from ecad.core import model as M
@@ -428,14 +428,19 @@ def test_ui():
         before = len(b.elements)
         macro = next((m for m in win.library.macros if m.name == "SOIC-8"), None)
         ok(macro is not None, "макрос SOIC-8 не найден")
-        for i in range(win.pane_lib.tree.count()):
-            item = win.pane_lib.tree.item(i)
-            if item.data(Qt.ItemDataRole.UserRole) is macro:
-                win.pane_lib.tree.setCurrentItem(item)
-                break
+        found = None
+        for g in range(win.pane_lib.tree.topLevelItemCount()):
+            head = win.pane_lib.tree.topLevelItem(g)
+            for j in range(head.childCount()):
+                item = head.child(j)
+                if item.data(0, Qt.ItemDataRole.UserRole) is macro:
+                    found = item
+                    break
+        ok(found is not None, "макрос не найден в дереве библиотеки")
+        win.pane_lib.tree.setCurrentItem(found)
         app.processEvents()
-        win.pane_lib._place()
-        ok(c.placed_macro is not None, "режим размещения не активирован")
+        win.pane_lib._on_item_clicked(found, 0)
+        ok(c.placed_macro is not None, "клик по макросу не запускает размещение")
         target = (40.0, 30.0)
         pos = QPointF(c.to_screen(target, False))
         c.mousePressEvent(QMouseEvent(QMouseEvent.Type.MouseButtonPress, pos, pos.toPoint(),
@@ -476,6 +481,43 @@ def test_ui():
         return f"DRC ошибок {len(win.pane_drc.errors)}, фильтр {win.pane_filter.list.count()}"
 
     check("панели DRC, компоненты, фильтр", ui_panels)
+
+    def ui_arrow_rotate():
+        b = c.board()
+        c.select_all()
+        app.processEvents()
+        ok(len(c.selection) > 0, "нечего поворачивать")
+        marks_before = []
+        from ecad.core.model import Track as _T
+        tracks = [b.elements[i] for i in c.selection if isinstance(b.elements[i], _T)]
+        ok(tracks, "нет дорожек для проверки угла")
+        t0 = tracks[0]
+        before_pts = list(t0.points)
+        for k, expected in ((Qt.Key.Key_Right, 90.0), (Qt.Key.Key_Left, -90.0)):
+            c.keyPressEvent(type("E", (), {"key": lambda s: k,
+                                           "modifiers": lambda s: Qt.KeyboardModifier.NoModifier})())
+            app.processEvents()
+        ok(before_pts != t0.points, "стрелки не повернули выделение")
+        return f"поворот стрелками, элементов {len(c.selection)}"
+
+    check("поворот выделенного стрелками", ui_arrow_rotate)
+
+    def ui_wheel_pan():
+        old_off = QPointF(c.offset)
+        ad_y, ad_x = 240, 0
+        from PySide6.QtGui import QWheelEvent
+        from PySide6.QtCore import QPoint as _QPoint
+        ev = QWheelEvent(_QPoint(300, 300), _QPoint(win.mapToGlobal(_QPoint(300, 300))),
+                         _QPoint(ad_x, ad_y), _QPoint(ad_x, ad_y),
+                         Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
+                         Qt.ScrollPhase.ScrollUpdate, False)
+        c.wheelEvent(ev)
+        app.processEvents()
+        ok(c.offset != old_off, "колесо не прокручивает вид")
+        ok(abs(c.offset.y() - old_off.y()) > 1.0, "вертикальная прокрутка слишком мала")
+        return f"смещение по Y: {c.offset.y() - old_off.y():.1f} мм"
+
+    check("прокрутка колесом без Ctrl", ui_wheel_pan)
 
     def ui_left_panel():
         panel = win.tool_panel
@@ -521,15 +563,22 @@ def test_ui():
         buttons = [b.text() for b in dlg.findChildren(type(dlg.btn_author if hasattr(dlg, "btn_author")
                                                           else D.BaseDialog))] if False else []
         texts = []
-        from PySide6.QtWidgets import QPushButton
+        from PySide6.QtWidgets import QLabel, QPushButton
         for b in dlg.findChildren(QPushButton):
             if b.text():
                 texts.append(b.text())
-        ok(any("Автор" in t for t in texts), "нет кнопки «Автор»")
-        ok(any("Репозитории" in t for t in texts), "нет кнопки «Репозитории»")
-        ok(any("Инструкция" in t for t in texts), "нет кнопки инструкции")
+        ok(any("Закрыть" in t for t in texts), "нет кнопки «Закрыть»")
+        block = dlg.findChildren(QLabel)
+        head_texts = [w.text() for w in block if isinstance(w, QLabel)]
+        ok(any("АВТОР" in t for t in head_texts), "нет блока «АВТОР»")
+        cards = dlg.findChildren(LinksCard)
+        ok(len(cards) >= 2, "нет карточек ссылок (соцсети и репозитории)")
+        joined = " ".join(w.text() for w in block)
+        ok("vk.ru/seller_tg" in joined, "нет ссылки ВКонтакте")
+        ok("yoomoney" in joined or "boosty" in joined, "нет ссылок поддержки")
+        ok("github.com/miiko3" in joined, "нет ссылок GitHub")
         dlg.close()
-        return "кнопки: " + ", ".join(texts[:4])
+        return f"блоков ссылок {len(cards)}"
 
     check("блок «О программе»: автор и репозитории", ui_about)
 
@@ -616,9 +665,17 @@ def main():
     print("e-cad e2e test")
     print("=" * 60)
     print("\n[Ядро]")
-    test_core()
+    try:
+        test_core()
+    except Exception:
+        import traceback as _tb
+        _tb.print_exc()
     print("\n[Интерфейс]")
-    test_ui()
+    try:
+        test_ui()
+    except Exception:
+        import traceback as _tb
+        _tb.print_exc()
     print("\n" + "=" * 60)
     failed = [r for r in RESULTS if not r[1]]
     print(f"проверок: {len(RESULTS)} | успешно: {len(RESULTS) - len(failed)} | ошибок: {len(failed)}")

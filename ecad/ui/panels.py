@@ -8,13 +8,12 @@ from typing import Dict, List, Optional, Sequence
 from PySide6.QtCore import QPoint, QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (QAction, QBrush, QColor, QIcon, QPainter, QPen,
                              QPixmap, QPolygonF)
-from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QFrame,
-                               QGridLayout, QSizePolicy,
-                               QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
-                               QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                               QPushButton, QScrollArea, QSizePolicy, QSlider,
-                               QSpinBox, QDoubleSpinBox, QSplitter, QTabWidget,
-                               QToolButton, QVBoxLayout, QWidget, QToolBar)
+from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox,
+                               QFrame, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
+                               QLabel, QLineEdit, QListWidget, QListWidgetItem, QPushButton,
+                               QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter,
+                               QTabWidget, QToolBar, QToolButton, QTreeWidget,
+                               QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from ..core import drc as drc_mod
 from ..core.model import (ALL_LAYERS, BOTTOM_KEY, COPPER_KEYS, LAYER_BY_KEY,
@@ -1136,7 +1135,7 @@ class PhotoPanel(QFrame):
 
 
 class LibraryPanel(QFrame):
-    """Библиотека макросов: дерево, предпросмотр, drag&drop на плату."""
+    """Библиотека макросов: сворачиваемые группы, предпросмотр, клик — размещение."""
 
     placeMacro = Signal(object)
     saveMacroRequested = Signal()
@@ -1162,32 +1161,43 @@ class LibraryPanel(QFrame):
         v.addLayout(h)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Поиск макроса…")
+        self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self.refresh)
         v.addWidget(self.search)
-        self.tree = QListWidget()
+
+        self.tree = QTreeWidget()
+        self.tree.setHeaderHidden(True)
+        self.tree.setAnimated(True)
+        self.tree.setIndentation(14)
+        self.tree.itemClicked.connect(self._on_item_clicked)
         self.tree.itemSelectionChanged.connect(self._preview)
-        self.tree.itemDoubleClicked.connect(self._place)
-        self.tree.setDragEnabled(True)
         v.addWidget(self.tree, 1)
+
         self.preview = MacroPreview(canvas)
         v.addWidget(self.preview)
+
         h2 = QHBoxLayout()
-        self.btn_place = QPushButton("Разместить")
-        self.btn_place.setObjectName("Primary")
-        self.btn_place.clicked.connect(self._place)
         self.btn_rot = QPushButton("Поворот 90°")
+        self.btn_rot.setToolTip("Повернуть размещаемый макрос на 90°")
         self.btn_rot.clicked.connect(self._rotate)
         self.btn_side = QPushButton("Сторона: ВЕР")
+        self.btn_side.setToolTip("Разместить на нижней стороне платы")
         self.btn_side.clicked.connect(self._flip_side)
+        self.btn_import = QPushButton("Загрузить макрос…")
+        self.btn_import.setObjectName("Primary")
+        self.btn_import.setToolTip("Добавить макрос из файла в библиотеку")
+        self.btn_import.clicked.connect(self.import_macro)
+        h2.addWidget(self.btn_rot)
+        h2.addWidget(self.btn_side)
+        v.addLayout(h2)
+        v.addWidget(self.btn_import)
+
+        h3 = QHBoxLayout()
         self.btn_save = QPushButton("Сохранить макрос")
         self.btn_save.clicked.connect(self.saveMacroRequested.emit)
         self.btn_del = QPushButton("Удалить")
         self.btn_del.setObjectName("Danger")
         self.btn_del.clicked.connect(self._delete)
-        for b in (self.btn_place, self.btn_rot, self.btn_side):
-            h2.addWidget(b)
-        v.addLayout(h2)
-        h3 = QHBoxLayout()
         h3.addWidget(self.btn_save)
         h3.addWidget(self.btn_del)
         v.addLayout(h3)
@@ -1197,9 +1207,10 @@ class LibraryPanel(QFrame):
         item = self.tree.currentItem()
         if item is None:
             return None
-        return item.data(Qt.ItemDataRole.UserRole)
+        return item.data(0, Qt.ItemDataRole.UserRole)
 
     def refresh(self):
+        self.tree.blockSignals(True)
         self.tree.clear()
         text = self.search.text().strip().lower()
         groups: Dict[str, list] = {}
@@ -1208,30 +1219,32 @@ class LibraryPanel(QFrame):
                 continue
             groups.setdefault(m.group, []).append(m)
         for g in sorted(groups):
-            head = QListWidgetItem(f"▾ {g}")
+            head = QTreeWidgetItem([g])
             head.setFlags(Qt.ItemFlag.ItemIsEnabled)
-            f = head.font()
+            f = head.font(0)
             f.setBold(True)
-            head.setFont(f)
-            self.tree.addItem(head)
+            head.setFont(0, f)
+            head.setForeground(0, QBrush(QColor("#9ecbff")))
+            self.tree.addTopLevelItem(head)
             for m in sorted(groups[g], key=lambda x: x.name):
-                it = QListWidgetItem(f"    {m.name}")
-                it.setData(Qt.ItemDataRole.UserRole, m)
-                self.tree.addItem(it)
+                it = QTreeWidgetItem([m.name])
+                it.setData(0, Qt.ItemDataRole.UserRole, m)
+                head.addChild(it)
+        self.tree.expandAll()
+        self.tree.blockSignals(False)
 
     def _preview(self):
         self.preview.show_macro(self.current_macro())
 
-    def _place(self):
-        m = self.current_macro()
+    def _on_item_clicked(self, item, _col):
+        m = item.data(0, Qt.ItemDataRole.UserRole)
         if m is not None:
+            self.preview.show_macro(m)
             self.placeMacro.emit(m)
 
     def _rotate(self):
-        m = self.current_macro()
-        if m:
-            self.canvas.macro_rot = (self.canvas.macro_rot + 90) % 360
-            self.canvas.statusMessage.emit(f"Поворот макроса: {self.canvas.macro_rot}°")
+        self.canvas.macro_rot = (self.canvas.macro_rot + 90) % 360
+        self.canvas.statusMessage.emit(f"Поворот макроса: {self.canvas.macro_rot}°")
 
     def _flip_side(self):
         self.canvas.macro_bottom = not self.canvas.macro_bottom
@@ -1244,6 +1257,31 @@ class LibraryPanel(QFrame):
             self.library.delete(m)
             self.library.scan()
             self.refresh()
+
+    def import_macro(self):
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Загрузить макрос в библиотеку", "",
+            "Макросы e-cad (*.ecadm *.json);;Все файлы (*)")
+        if not path:
+            return
+        try:
+            import json
+            from ..core.tools_lib import Macro
+            with open(path, "r", encoding="utf-8") as f:
+                m = Macro.from_dict(json.load(f))
+            if not m.elements:
+                raise ValueError("в файле нет элементов")
+            m.group = m.group or "Импорт"
+            m.name = m.name or os.path.splitext(os.path.basename(path))[0]
+            m.path = None
+            self.library.save(m)
+            self.library.scan()
+            self.refresh()
+            self.canvas.statusMessage.emit(f"Макрос загружен: {m.name} ({len(m.elements)} эл.)")
+        except Exception as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Импорт макроса", f"Не удалось загрузить:\n{e}")
 
 
 class MacroPreview(QWidget):

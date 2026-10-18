@@ -148,6 +148,7 @@ class Canvas(QWidget):
         self.drag_elems: List[Tuple[Element, Tuple[float, float]]] = []
         self.marquee: Optional[Tuple[Tuple[float, float], Tuple[float, float]]] = None
         self.conn_first: Optional[str] = None
+        self.route_first: Optional[str] = None
         self.panning = False
         self.pan_origin = QPointF()
         self.cursor_mm = (0.0, 0.0)
@@ -1107,16 +1108,26 @@ class Canvas(QWidget):
             self.select([el.id])
             self.requestDialog.emit("component")
 
+    def pan_px(self, dx: float, dy: float):
+        self.offset = QPointF(self.offset.x() - dx / self.scale,
+                              self.offset.y() - dy / self.scale)
+        self.update()
+
     def wheelEvent(self, ev):
-        delta = ev.angleDelta().y()
-        if delta == 0:
-            return
-        if self._mods_ctrl or ev.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            factor = 1.2 if delta > 0 else 1 / 1.2
+        ad = ev.angleDelta()
+        mods = ev.modifiers()
+        if mods & Qt.KeyboardModifier.ControlModifier:
+            factor = 1.2 if ad.y() > 0 else 1 / 1.2
             self.remember_view()
             self.zoom_at(factor, ev.position())
+            return
+        step = (ad.y() / 120.0) * 80.0
+        if mods & Qt.KeyboardModifier.ShiftModifier:
+            self.pan_px(step, 0)
         else:
-            self.pan_by(-delta * 40 / self.scale, 0)
+            self.pan_px(0, step)
+        if ad.x():
+            self.pan_px((ad.x() / 120.0) * 80.0, 0)
 
     def pan_by(self, dx: float, dy: float):
         self.offset = QPointF(self.offset.x() - dx / self.scale,
@@ -1135,6 +1146,7 @@ class Canvas(QWidget):
         self.measure_from = None
         self.measure_to = None
         self.conn_first = None
+        self.route_first = None
         self.drag_start = None
         self.marquee = None
         self.toolChanged.emit(name)
@@ -1508,7 +1520,27 @@ class Canvas(QWidget):
                 else:
                     self.statusMessage.emit("Автотрасса: не удалось найти свободный путь")
                 return
-        self.statusMessage.emit("Автотрасса: связи не найдено")
+        if self.route_first is None:
+            self.route_first = pad.id
+            self.statusMessage.emit("Автотрасса: укажите второй контакт")
+            return
+        first = self.route_first
+        self.route_first = None
+        if first == pad.id:
+            return
+        conn = Connection(a=first, b=pad.id, layer=self.active_layer)
+        b.elements[conn.id] = conn
+        tr = autotrace(b, conn, RouteParams(width=self.settings["route_width"],
+                                             clearance=self.settings["route_clearance"],
+                                             grid=self.settings["route_grid"]))
+        if tr:
+            self.push_undo()
+            self._add(tr)
+            self.statusMessage.emit(f"Автотрасса проложена: длина {tr.length():.2f} мм")
+        else:
+            self._remove(conn.id)
+            self.invalidate()
+            self.statusMessage.emit("Автотрасса: свободный путь не найден")
 
     def _already_routed(self, b, conn) -> bool:
         for el in b.elements.values():
@@ -2012,6 +2044,22 @@ class Canvas(QWidget):
     
     def keyPressEvent(self, ev):
         key = ev.key()
+        if key in (Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down):
+            if self.selection:
+                ang = {Qt.Key.Key_Left: -90.0, Qt.Key.Key_Right: 90.0,
+                       Qt.Key.Key_Up: 90.0, Qt.Key.Key_Down: -90.0}[key]
+                self.rotate_selected(ang)
+                return
+            step = self.settings["grid_step"] * self.scale
+            if key == Qt.Key.Key_Left:
+                self.pan_px(step, 0)
+            elif key == Qt.Key.Key_Right:
+                self.pan_px(-step, 0)
+            elif key == Qt.Key.Key_Up:
+                self.pan_px(0, step)
+            else:
+                self.pan_px(0, -step)
+            return
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             if self.tool == "poly":
                 self.close_polygon()
