@@ -387,7 +387,6 @@ class MainWindow(QMainWindow):
 
     def _doc_changed(self):
         self._doc_label()
-        self.canvas.touch()
 
     def _doc_label(self):
         name = self.doc.file or "Новый проект"
